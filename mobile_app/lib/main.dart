@@ -95,6 +95,26 @@ class _HomeScreenState extends State<HomeScreen> {
     await box.put('cards', flashcards.map((c) => c.toMap()).toList());
   }
 
+  Future<void> _deleteCard(String id) async {
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('حذف البطاقة'),
+        content: Text('هل أنت متأكد من رغبتك في حذف هذه البطاقة نهائياً؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: Text('حذف', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    ) ?? false;
+
+    if (confirm) {
+      setState(() => flashcards.removeWhere((c) => c.id == id));
+      await _saveFlashcards();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حذف البطاقة')));
+    }
+  }
+
   void _showServerSettings() {
     TextEditingController urlController = TextEditingController(text: serverUrlNotifier.value);
     showDialog(
@@ -207,7 +227,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       leading: card.imagePath != null ? Icon(Icons.image, color: Colors.purple) : Icon(Icons.note),
                       title: Text(card.question, maxLines: 1),
                       subtitle: Text(card.category),
-                      trailing: IconButton(icon: Icon(Icons.edit, size: 20), onPressed: () => _showEditCardDialog(card)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(icon: Icon(Icons.edit, size: 20, color: Colors.blue), onPressed: () => _showEditCardDialog(card)),
+                          IconButton(icon: Icon(Icons.delete, size: 20, color: Colors.red), onPressed: () => _deleteCard(card.id)),
+                        ],
+                      ),
                       onTap: () => _showCardDetails(card),
                     ),
                   );
@@ -374,7 +400,41 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('تعديل'), content: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 80), TextButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: Icon(Icons.edit), label: Text('تغيير الصورة')), TextField(controller: qController)]), actions: [ElevatedButton(onPressed: () async { final updated = card.copyWith(question: qController.text, imagePath: imagePath); setState(() { int idx = flashcards.indexWhere((c) => c.id == card.id); flashcards[idx] = updated; }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('حفظ'))])));
   }
 
-  void _showFlashcards() { showModalBottomSheet(context: context, isScrollControlled: true, builder: (context) => DraggableScrollableSheet(expand: false, builder: (context, scroll) => ListView.builder(controller: scroll, itemCount: flashcards.length, itemBuilder: (context, i) => ListTile(title: Text(flashcards[i].question))))); }
+  void _showFlashcards() { 
+    showModalBottomSheet(
+      context: context, 
+      isScrollControlled: true, 
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.8,
+        expand: false, 
+        builder: (context, scroll) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('جميع البطاقات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: scroll, 
+                itemCount: flashcards.length, 
+                itemBuilder: (context, i) {
+                  final card = flashcards[i];
+                  return ListTile(
+                    title: Text(card.question),
+                    subtitle: Text(card.category),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteCard(card.id),
+                    ),
+                  );
+                }
+              ),
+            ),
+          ],
+        )
+      )
+    ); 
+  }
   
   void _startQuiz() async {
     final now = DateTime.now();
