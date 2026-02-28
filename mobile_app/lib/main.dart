@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive/hive.dart';
@@ -254,64 +255,127 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _processText(String text, String category) async {
+    if (text.isEmpty) {
+      _showErrorSnackBar('الرجاء إدخال نص للمعالجة');
+      return;
+    }
+    _showLoadingIndicator(); 
     try {
       final response = await http.post(
         Uri.parse('${serverUrlNotifier.value}/api/process-text'),
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
         body: jsonEncode({'text': text}),
       );
+
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         if (data['success'] == true) {
           final List<dynamic> newCardsData = data['flashcards'];
           final newCards = newCardsData.map((cardData) => Flashcard(
-            id: DateTime.now().millisecondsSinceEpoch.toString() + '_' + cardData['question'].hashCode.toString(),
-            question: cardData['question'] ?? '',
-            answer: cardData['answer'] ?? '',
+            id: DateTime.now().millisecondsSinceEpoch.toString() + '_' + (cardData['question']?.hashCode.toString() ?? Random().nextInt(1000).toString()),
+            question: cardData['question'] ?? 'سؤال فارغ',
+            answer: cardData['answer'] ?? 'إجابة فارغة',
             category: category,
             nextReviewDate: DateTime.now(),
             interval: 1,
           )).toList();
-          setState(() => flashcards.addAll(newCards));
+          setState(() {
+            flashcards.addAll(newCards);
+          });
           await _saveFlashcards();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'), backgroundColor: Colors.green));
+        } else {
+          _showErrorSnackBar('فشل في معالجة النص: ${data['error'] ?? 'سبب غير معروف'}');
         }
+      } else {
+        String serverError = 'رمز الحالة: ${response.statusCode}';
+        try {
+          final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+          if (errorData['error'] != null) {
+            serverError = errorData['error'];
+          }
+        } catch (_) {}
+        _showErrorSnackBar('خطأ من الخادم: $serverError');
       }
-    } catch (e) { _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e'); }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
+    } finally {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
     if (image != null) {
       final category = await _showCategoryDialog(title: 'تصنيف الصورة');
-      if (category != null) {
+      if (category != null && category.isNotEmpty) {
         _processImage(image, category);
       }
     }
   }
 
+  void _showLoadingIndicator() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('جاري المعالجة...'),
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('يرجى الانتظار'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _processImage(XFile image, String category) async {
+    _showLoadingIndicator(); 
     try {
       var request = http.MultipartRequest('POST', Uri.parse('${serverUrlNotifier.value}/api/process-image'));
       request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
+
       if (response.statusCode == 200) {
         final data = jsonDecode(responseBody);
         if (data['success'] == true) {
           final List<dynamic> newCardsData = data['flashcards'];
           final newCards = newCardsData.map((cardData) => Flashcard(
-            id: DateTime.now().millisecondsSinceEpoch.toString() + '_' + cardData['question'].hashCode.toString(),
-            question: cardData['question'] ?? '',
-            answer: cardData['answer'] ?? '',
+            id: DateTime.now().millisecondsSinceEpoch.toString() + '_' + (cardData['question']?.hashCode.toString() ?? Random().nextInt(1000).toString()),
+            question: cardData['question'] ?? 'سؤال فارغ',
+            answer: cardData['answer'] ?? 'إجابة فارغة',
             category: category,
             nextReviewDate: DateTime.now(),
             interval: 1,
           )).toList();
-          setState(() => flashcards.addAll(newCards));
+          setState(() {
+            flashcards.addAll(newCards);
+          });
           await _saveFlashcards();
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'), backgroundColor: Colors.green));
+        } else {
+          _showErrorSnackBar('فشل في معالجة الصورة: ${data['error'] ?? 'سبب غير معروف'}');
         }
+      } else {
+        String serverError = 'رمز الحالة: ${response.statusCode}';
+        try {
+          final errorData = jsonDecode(responseBody);
+          if (errorData['error'] != null) {
+            serverError = errorData['error'];
+          }
+        } catch (_) {}
+        _showErrorSnackBar('خطأ من الخادم: $serverError');
       }
-    } catch (e) { _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e'); }
+    } catch (e) {
+      _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
+    } finally {
+      Navigator.of(context).pop(); 
+    }
   }
 
   void _showThemeMenu() {
@@ -400,42 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('تعديل'), content: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 80), TextButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: Icon(Icons.edit), label: Text('تغيير الصورة')), TextField(controller: qController)]), actions: [ElevatedButton(onPressed: () async { final updated = card.copyWith(question: qController.text, imagePath: imagePath); setState(() { int idx = flashcards.indexWhere((c) => c.id == card.id); flashcards[idx] = updated; }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('حفظ'))])));
   }
 
-  void _showFlashcards() { 
-    showModalBottomSheet(
-      context: context, 
-      isScrollControlled: true, 
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        expand: false, 
-        builder: (context, scroll) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text('جميع البطاقات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: scroll, 
-                itemCount: flashcards.length, 
-                itemBuilder: (context, i) {
-                  final card = flashcards[i];
-                  return ListTile(
-                    title: Text(card.question),
-                    subtitle: Text(card.category),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteCard(card.id),
-                    ),
-                  );
-                }
-              ),
-            ),
-          ],
-        )
-      )
-    ); 
-  }
-  
+  void _showFlashcards() { showModalBottomSheet(context: context, isScrollControlled: true, builder: (context) => DraggableScrollableSheet(expand: false, builder: (context, scroll) => ListView.builder(controller: scroll, itemCount: flashcards.length, itemBuilder: (context, i) => ListTile(title: Text(flashcards[i].question))))); }
   void _startQuiz() async {
     final now = DateTime.now();
     final due = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).toList();
