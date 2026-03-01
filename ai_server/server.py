@@ -14,7 +14,6 @@ if GEMINI_API_KEY:
 app = Flask(__name__)
 CORS(app)
 
-# الصفحة الرئيسية التي ستظهر في المتصفح
 @app.route('/', methods=['GET'])
 def index():
     return """
@@ -25,7 +24,7 @@ def index():
             <p>هذا السيرفر مخصص لمعالجة طلبات تطبيق الاندرويد عبر الذكاء الاصطناعي.</p>
             <div style="background: #f4f4f4; padding: 20px; display: inline-block; border-radius: 10px;">
                 <b>الحالة:</b> متصل بـ Gemini AI <br>
-                <b>الرابط الحالي:</b> اكنت متصلاً بنجاح
+                <b>الموديل:</b> Gemini 1.5 Flash
             </div>
         </body>
     </html>
@@ -60,22 +59,45 @@ def process_image_endpoint():
 
 def generate_flashcards_with_gemini(input_data, is_image=False):
     if not GEMINI_API_KEY:
-        return jsonify({'error': 'API Key not configured'}), 500
+        return jsonify({'error': 'API Key not configured on server'}), 500
     try:
+        # استخدام gemini-1.5-flash كونه يدعم النصوص والصور معاً وهو سريع جداً
         model = genai.GenerativeModel('gemini-1.5-flash')
+        
         prompt = """أنت خبير في إنشاء المحتوى التعليمي. 
-        قم باستخراج المعلومات الهامة من هذا المدخل (سواء كان نصاً أو صورة) وحولها إلى مجموعة بطاقات تعليمية (Flashcards).
+        قم باستخراج المعلومات الهامة من هذا المدخل وحولها إلى مجموعة بطاقات تعليمية (Flashcards).
         يجب أن تكون الإجابة بصيغة JSON فقط، وهي عبارة عن قائمة من الكائنات، كل كائن يحتوي على "question" و "answer".
+        مثال للتنسيق المطلوب:
+        [
+          {"question": "ما هي عاصمة فرنسا؟", "answer": "باريس"},
+          {"question": "من اكتشف الجاذبية؟", "answer": "إسحاق نيوتن"}
+        ]
         اجعل الأسئلة ذكية ومختصرة باللغة العربية."""
+
         if is_image:
             response = model.generate_content([prompt, input_data])
         else:
-            response = model.generate_content(f"{prompt}\n\nالنص: {input_data}")
-        cleaned_response = response.text.strip().replace('```json', '').replace('```', '')
-        flashcard_data = json.loads(cleaned_response)
-        final_flashcards = [{'id': f'ai_{os.urandom(4).hex()}', 'question': fc['question'], 'answer': fc['answer'], 'category': 'ذكاء اصطناعي'} for fc in flashcard_data]
+            response = model.generate_content(f"{prompt}\n\nالنص المطلوب معالجته:\n{input_data}")
+        
+        # تنظيف الاستجابة من أي علامات Markdown
+        content = response.text.strip()
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0].strip()
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0].strip()
+            
+        flashcard_data = json.loads(content)
+        
+        final_flashcards = [{
+            'id': f'ai_{os.urandom(4).hex()}', 
+            'question': fc['question'], 
+            'answer': fc['answer'], 
+            'category': 'ذكاء اصطناعي'
+        } for fc in flashcard_data]
+        
         return jsonify({'success': True, 'flashcards': final_flashcards, 'count': len(final_flashcards)})
     except Exception as e:
+        print(f"Error: {str(e)}")
         return jsonify({'error': f"Gemini Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
