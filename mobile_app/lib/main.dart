@@ -261,11 +261,22 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     _showLoadingIndicator(); 
     try {
-      final response = await http.post(
+      var response = await http.post(
         Uri.parse('${serverUrlNotifier.value}/api/process-text'),
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
         body: jsonEncode({'text': text}),
       );
+
+      if (response.statusCode == 307 || response.statusCode == 308) {
+        String? redirectUrl = response.headers['location'];
+        if (redirectUrl != null) {
+          response = await http.post(
+            Uri.parse(redirectUrl),
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+            body: jsonEncode({'text': text}),
+          );
+        }
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -301,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
     } finally {
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
@@ -335,14 +346,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _processImage(XFile image, String category) async {
     _showLoadingIndicator(); 
+    http.Client? client;
     try {
+      client = http.Client();
       var request = http.MultipartRequest('POST', Uri.parse('${serverUrlNotifier.value}/api/process-image'));
       request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
+      
+      var streamedResponse = await client.send(request);
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 307 || response.statusCode == 308) {
+        String? redirectUrl = response.headers['location'];
+        if (redirectUrl != null) {
+          request = http.MultipartRequest('POST', Uri.parse(redirectUrl));
+          request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
+          streamedResponse = await client.send(request);
+          response = await http.Response.fromStream(streamedResponse);
+        }
+      }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(responseBody);
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
         if (data['success'] == true) {
           final List<dynamic> newCardsData = data['flashcards'];
           final newCards = newCardsData.map((cardData) => Flashcard(
@@ -357,14 +381,14 @@ class _HomeScreenState extends State<HomeScreen> {
             flashcards.addAll(newCards);
           });
           await _saveFlashcards();
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'), backgroundColor: Colors.green));
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'), backgroundColor: Colors.green));
         } else {
           _showErrorSnackBar('فشل في معالجة الصورة: ${data['error'] ?? 'سبب غير معروف'}');
         }
       } else {
         String serverError = 'رمز الحالة: ${response.statusCode}';
         try {
-          final errorData = jsonDecode(responseBody);
+          final errorData = jsonDecode(utf8.decode(response.bodyBytes));
           if (errorData['error'] != null) {
             serverError = errorData['error'];
           }
@@ -374,7 +398,8 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
     } finally {
-      Navigator.of(context).pop(); 
+      if (mounted) Navigator.of(context).pop(); 
+      client?.close();
     }
   }
 
