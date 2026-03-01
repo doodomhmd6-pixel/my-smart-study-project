@@ -16,25 +16,7 @@ CORS(app)
 
 @app.route('/', methods=['GET'])
 def index():
-    models_list = []
-    if GEMINI_API_KEY:
-        try:
-            models_list = [m.name for m in genai.list_models()]
-        except:
-            models_list = ["Could not list models"]
-    
-    return f"""
-    <html>
-        <head><title>Smart Study AI Server</title></head>
-        <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
-            <h1 style="color: #2196F3;">🚀 سيرفر ذاكرتي الذكية يعمل!</h1>
-            <div style="background: #f4f4f4; padding: 20px; display: inline-block; border-radius: 10px; text-align: left;">
-                <b>المكتبة:</b> {genai.__version__} <br>
-                <b>الموديلات المتاحة:</b> <pre>{json.dumps(models_list, indent=2)}</pre>
-            </div>
-        </body>
-    </html>
-    """
+    return "<h1>Smart Study AI Server is Running</h1><p>Connected to Gemini API</p>"
 
 @app.route('/api/process-text', methods=['POST'])
 def process_text_endpoint():
@@ -61,16 +43,17 @@ def generate_flashcards_with_gemini(input_data, is_image=False):
     if not GEMINI_API_KEY:
         return jsonify({'error': 'API Key not configured'}), 500
     
-    # قائمة بأسماء الموديلات المحتملة لتجنب خطأ 404
-    model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro']
-    if is_image:
-        model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro-vision']
+    # استخدام الموديلات المتاحة في قائمتك
+    # سنبدأ بـ gemini-2.0-flash لأنه متاح عندك وهو الأحدث
+    model_names = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-pro-latest']
 
     last_error = ""
     for m_name in model_names:
         try:
             model = genai.GenerativeModel(m_name)
-            prompt = "قم بإنشاء بطاقات تعليمية JSON تحتوي على question و answer من المحتوى التالي باللغة العربية:"
+            prompt = """حول المحتوى التالي إلى بطاقات تعليمية بصيغة JSON فقط.
+            التنسيق المطلوب: [{"question": "سؤال", "answer": "إجابة"}]
+            اللغة: العربية."""
             
             if is_image:
                 response = model.generate_content([prompt, input_data])
@@ -78,19 +61,26 @@ def generate_flashcards_with_gemini(input_data, is_image=False):
                 response = model.generate_content(f"{prompt}\n\n{input_data}")
             
             content = response.text.strip()
+            # استخراج الـ JSON فقط
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0].strip()
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
             
             flashcard_data = json.loads(content)
-            final_flashcards = [{'id': f'ai_{os.urandom(2).hex()}', 'question': fc['question'], 'answer': fc['answer'], 'category': 'ذكاء اصطناعي'} for fc in flashcard_data]
+            final_flashcards = [{
+                'id': f'ai_{os.urandom(3).hex()}', 
+                'question': fc['question'], 
+                'answer': fc['answer'], 
+                'category': 'ذكاء اصطناعي'
+            } for fc in flashcard_data]
+            
             return jsonify({'success': True, 'flashcards': final_flashcards})
         except Exception as e:
             last_error = str(e)
-            continue # تجربة الموديل التالي إذا فشل الحالي
+            continue 
             
-    return jsonify({'error': f"All models failed. Last error: {last_error}"}), 500
+    return jsonify({'error': f"Failed with all models. Last error: {last_error}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
