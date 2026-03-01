@@ -67,12 +67,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Flashcard> flashcards = [];
+  List<Flashcard> filteredFlashcards = [];
   final ImagePicker _picker = ImagePicker();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadFlashcards();
+    _searchController.addListener(_filterFlashcards);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_filterFlashcards);
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFlashcards() async {
@@ -88,7 +98,10 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) { print('Error: $e'); }
-    setState(() => flashcards = tempLoadedCards);
+    setState(() {
+      flashcards = tempLoadedCards;
+      filteredFlashcards = List.from(flashcards);
+    });
   }
 
   Future<void> _saveFlashcards() async {
@@ -110,7 +123,10 @@ class _HomeScreenState extends State<HomeScreen> {
     ) ?? false;
 
     if (confirm) {
-      setState(() => flashcards.removeWhere((c) => c.id == id));
+      setState(() {
+        flashcards.removeWhere((c) => c.id == id);
+        filteredFlashcards.removeWhere((c) => c.id == id); // Remove from filtered list too
+      });
       await _saveFlashcards();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حذف البطاقة')));
     }
@@ -140,6 +156,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               String newUrl = urlController.text.trim();
               if (newUrl.isNotEmpty) {
+                if (newUrl.startsWith('http://') && newUrl.contains('onrender.com')) {
+                   newUrl = newUrl.replaceFirst('http://', 'https://');
+                }
                 serverUrlNotifier.value = newUrl;
                 Hive.box('settings').put('serverUrl', newUrl);
                 Navigator.pop(context);
@@ -153,15 +172,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _filterFlashcards() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      filteredFlashcards = flashcards.where((card) {
+        return card.question.toLowerCase().contains(query) ||
+               card.answer.toLowerCase().contains(query) ||
+               card.category.toLowerCase().contains(query);
+      }).toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final recentCards = flashcards.length > 5 ? flashcards.sublist(flashcards.length - 5) : flashcards;
+    // Use filteredFlashcards for display
+    final displayCards = filteredFlashcards;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('ذاكرتي الذكية'),
         actions: [
-          IconButton(icon: Icon(Icons.bar_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StatisticsScreen(flashcards: flashcards)))),
+          IconButton(icon: Icon(Icons.bar_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StatisticsScreen(flashcards: flashcards)))), // Pass all flashcards for stats
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert),
             onSelected: (val) {
@@ -201,6 +232,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             SizedBox(height: 20),
+            // Search Bar
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'ابحث عن بطاقة...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            SizedBox(height: 20),
             GridView.count(
               shrinkWrap: true,
               physics: NeverScrollableScrollPhysics(),
@@ -210,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisSpacing: 10,
               children: [
                 _buildActionButton(icon: Icons.add, label: 'إضافة', color: Colors.green, onTap: _showAddCardDialog),
-                _buildActionButton(icon: Icons.style, label: 'البطاقات', color: Colors.blue, onTap: _showFlashcards),
+                _buildActionButton(icon: Icons.style, label: 'البطاقات', color: Colors.blue, onTap: () { /* Navigate to AllFlashcardsScreen */ Navigator.push(context, MaterialPageRoute(builder: (context) => AllFlashcardsScreen(allFlashcards: flashcards))); }),
                 _buildActionButton(icon: Icons.category, label: 'التصنيفات', color: Colors.cyan, onTap: _showCategoriesList),
                 _buildActionButton(icon: Icons.quiz, label: 'اختبار', color: Colors.orange, onTap: _startQuiz),
                 _buildActionButton(icon: Icons.text_fields, label: 'نص', color: Colors.teal, onTap: _showProcessTextDialog),
@@ -219,27 +260,44 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             SizedBox(height: 20),
             Expanded(
-              child: ListView.builder(
-                itemCount: recentCards.length,
-                itemBuilder: (context, index) {
-                  final card = recentCards[recentCards.length - 1 - index];
-                  return Card(
-                    child: ListTile(
-                      leading: card.imagePath != null ? Icon(Icons.image, color: Colors.purple) : Icon(Icons.note),
-                      title: Text(card.question, maxLines: 1),
-                      subtitle: Text(card.category),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(icon: Icon(Icons.edit, size: 20, color: Colors.blue), onPressed: () => _showEditCardDialog(card)),
-                          IconButton(icon: Icon(Icons.delete, size: 20, color: Colors.red), onPressed: () => _deleteCard(card.id)),
-                        ],
-                      ),
-                      onTap: () => _showCardDetails(card),
+              child: displayCards.isEmpty
+                  ? Center(child: Text('لا توجد بطاقات مطابقة للبحث'))
+                  : ListView.builder(
+                      itemCount: displayCards.length,
+                      itemBuilder: (context, index) {
+                        final card = displayCards[index]; // Use displayCards
+                        return Card(
+                          child: ListTile(
+                            leading: card.imagePath != null ? Icon(Icons.image, color: Colors.purple) : Icon(Icons.note),
+                            title: Column( // Use Column to stack question and answer
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(card.question, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                SizedBox(height: 4), // Space between question and answer
+                                Text(
+                                  'الإجابة: ${card.answer}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                            // Displaying Category
+                            subtitle: Text('التصنيف: ${card.category}', style: TextStyle(fontSize: 12)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(icon: Icon(Icons.edit, size: 20, color: Colors.blue), onPressed: () => _showEditCardDialog(card)),
+                                IconButton(icon: Icon(Icons.delete, size: 20, color: Colors.red), onPressed: () => _deleteCard(card.id)),
+                                // Share Button for individual card
+                                IconButton(icon: Icon(Icons.share, size: 20, color: Colors.grey), onPressed: () => _shareCard(card)),
+                              ],
+                            ),
+                            onTap: () => _showCardDetails(card),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -261,17 +319,19 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     _showLoadingIndicator(); 
     try {
+      Uri uri = Uri.parse('${serverUrlNotifier.value}/api/process-text');
       var response = await http.post(
-        Uri.parse('${serverUrlNotifier.value}/api/process-text'),
+        uri,
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
         body: jsonEncode({'text': text}),
       );
 
-      if (response.statusCode == 307 || response.statusCode == 308) {
-        String? redirectUrl = response.headers['location'];
-        if (redirectUrl != null) {
+      if (response.statusCode == 307 || response.statusCode == 308 || response.statusCode == 301) {
+        String? location = response.headers['location'];
+        if (location != null) {
+          uri = uri.resolve(location);
           response = await http.post(
-            Uri.parse(redirectUrl),
+            uri,
             headers: {'Content-Type': 'application/json; charset=UTF-8'},
             body: jsonEncode({'text': text}),
           );
@@ -292,6 +352,8 @@ class _HomeScreenState extends State<HomeScreen> {
           )).toList();
           setState(() {
             flashcards.addAll(newCards);
+            filteredFlashcards.addAll(newCards); // Add to filtered list as well
+            _filterFlashcards(); // Re-apply filter in case search text is present
           });
           await _saveFlashcards();
           if (!mounted) return;
@@ -349,18 +411,21 @@ class _HomeScreenState extends State<HomeScreen> {
     http.Client? client;
     try {
       client = http.Client();
-      var request = http.MultipartRequest('POST', Uri.parse('${serverUrlNotifier.value}/api/process-image'));
+      Uri uri = Uri.parse('${serverUrlNotifier.value}/api/process-image');
+      
+      var request = http.MultipartRequest('POST', uri);
       request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
       
       var streamedResponse = await client.send(request);
       var response = await http.Response.fromStream(streamedResponse);
 
-      if (response.statusCode == 307 || response.statusCode == 308) {
-        String? redirectUrl = response.headers['location'];
-        if (redirectUrl != null) {
-          request = http.MultipartRequest('POST', Uri.parse(redirectUrl));
-          request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
-          streamedResponse = await client.send(request);
+      if (response.statusCode == 307 || response.statusCode == 308 || response.statusCode == 301) {
+        String? location = response.headers['location'];
+        if (location != null) {
+          uri = uri.resolve(location);
+          var retryRequest = http.MultipartRequest('POST', uri);
+          retryRequest.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
+          streamedResponse = await client.send(retryRequest);
           response = await http.Response.fromStream(streamedResponse);
         }
       }
@@ -379,8 +444,9 @@ class _HomeScreenState extends State<HomeScreen> {
           )).toList();
           setState(() {
             flashcards.addAll(newCards);
+            filteredFlashcards.addAll(newCards); // Add to filtered list as well
+            _filterFlashcards(); // Re-apply filter
           });
-          await _saveFlashcards();
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'), backgroundColor: Colors.green));
         } else {
           _showErrorSnackBar('فشل في معالجة الصورة: ${data['error'] ?? 'سبب غير معروف'}');
@@ -396,7 +462,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _showErrorSnackBar('خطأ من الخادم: $serverError');
       }
     } catch (e) {
-      _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
+      if (e.toString().contains('Software caused connection abort')) {
+        _showErrorSnackBar('تم قطع الاتصال من الخادم. يرجى التأكد من استخدام https:// في عنوان السيرفر.');
+      } else {
+        _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
+      }
     } finally {
       if (mounted) Navigator.of(context).pop(); 
       client?.close();
@@ -445,7 +515,10 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         setState(() {
           for (var nc in newCards) {
-            if (!flashcards.any((c) => c.id == nc.id)) flashcards.add(nc);
+            if (!flashcards.any((c) => c.id == nc.id)) {
+              flashcards.add(nc);
+              filteredFlashcards.add(nc); // Add to filtered list too
+            }
           }
         });
         await _saveFlashcards();
@@ -456,7 +529,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showCategoriesList() {
     final categories = <String, int>{};
-    for (var card in flashcards) categories[card.category] = (categories[card.category] ?? 0) + 1;
+    for (var card in flashcards) {
+      categories.update(card.category, (count) => count + 1, ifAbsent: () => 1);
+    }
     final sorted = categories.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     showModalBottomSheet(
       context: context,
@@ -464,10 +539,12 @@ class _HomeScreenState extends State<HomeScreen> {
         itemCount: sorted.length,
         itemBuilder: (context, index) => ListTile(
           title: Text(sorted[index].key),
-          trailing: IconButton(icon: Icon(Icons.share, color: Colors.blue), onPressed: () {
+          trailing: Text('(${sorted[index].value})'), // Display count here
+          onTap: () {
             Navigator.pop(context);
-            _exportCards(flashcards.where((c) => c.category == sorted[index].key).toList(), "category_${sorted[index].key}");
-          }),
+            // Optionally navigate to a filtered list of cards for this category
+            // Or just close the bottom sheet
+          },
         ),
       ),
     );
@@ -480,22 +557,47 @@ class _HomeScreenState extends State<HomeScreen> {
     TextEditingController aController = TextEditingController();
     String type = 'text'; String? imagePath;
 
-    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('إضافة بطاقة'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 100, fit: BoxFit.cover), ElevatedButton.icon(onPressed: () async { final XFile? image = await _picker.pickImage(source: ImageSource.gallery); if (image != null) setDialogState(() => imagePath = image.path); }, icon: Icon(Icons.add_a_photo), label: Text('إضافة صورة')), TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')), DropdownButtonFormField<String>(value: type, items: [DropdownMenuItem(value: 'text', child: Text('نص')), DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) => setDialogState(() => type = v!)), TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () async { final card = Flashcard(id: DateTime.now().millisecondsSinceEpoch.toString(), question: qController.text, answer: aController.text, category: category, nextReviewDate: DateTime.now(), interval: 1, answerType: type, imagePath: imagePath); setState(() => flashcards.add(card)); await _saveFlashcards(); Navigator.pop(context); }, child: Text('إضافة'))])));
+    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('إضافة بطاقة'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 100, fit: BoxFit.cover), ElevatedButton.icon(onPressed: () async { final XFile? image = await _picker.pickImage(source: ImageSource.gallery); if (image != null) setDialogState(() => imagePath = image.path); }, icon: Icon(Icons.add_a_photo), label: Text('إضافة صورة')), TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')), DropdownButtonFormField<String>(value: type, items: [DropdownMenuItem(value: 'text', child: Text('نص')), DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) => setDialogState(() => type = v!)), TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () async { final card = Flashcard(id: DateTime.now().millisecondsSinceEpoch.toString(), question: qController.text, answer: aController.text, category: category, nextReviewDate: DateTime.now(), interval: 1, answerType: type, imagePath: imagePath); setState(() {
+      flashcards.add(card);
+      filteredFlashcards.add(card);
+      _filterFlashcards();
+    }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('إضافة'))])));
   }
 
   Future<void> _showEditCardDialog(Flashcard card) async {
     TextEditingController qController = TextEditingController(text: card.question);
     String? imagePath = card.imagePath;
-    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('تعديل'), content: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 80), TextButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: Icon(Icons.edit), label: Text('تغيير الصورة')), TextField(controller: qController)]), actions: [ElevatedButton(onPressed: () async { final updated = card.copyWith(question: qController.text, imagePath: imagePath); setState(() { int idx = flashcards.indexWhere((c) => c.id == card.id); flashcards[idx] = updated; }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('حفظ'))])));
+    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('تعديل'), content: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 80), TextButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: Icon(Icons.edit), label: Text('تغيير الصورة')), TextField(controller: qController)]), actions: [ElevatedButton(onPressed: () async { final updated = card.copyWith(question: qController.text, imagePath: imagePath); setState(() {
+      int idx = flashcards.indexWhere((c) => c.id == card.id);
+      if (idx != -1) flashcards[idx] = updated;
+      idx = filteredFlashcards.indexWhere((c) => c.id == card.id); // Update in filtered list too
+      if (idx != -1) filteredFlashcards[idx] = updated;
+      _filterFlashcards(); // Re-apply filter
+    }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('حفظ'))])));
   }
 
-  void _showFlashcards() { showModalBottomSheet(context: context, isScrollControlled: true, builder: (context) => DraggableScrollableSheet(expand: false, builder: (context, scroll) => ListView.builder(controller: scroll, itemCount: flashcards.length, itemBuilder: (context, i) => ListTile(title: Text(flashcards[i].question))))); }
+  void _showFlashcards() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => AllFlashcardsScreen(allFlashcards: flashcards)));
+  }
+
   void _startQuiz() async {
     final now = DateTime.now();
-    final due = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).toList();
-    if (due.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا توجد بطاقات للمراجعة'))); return; }
+    // Filter cards for quiz: review date is before now, AND only show cards matching current search query
+    final due = filteredFlashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).toList();
+    if (due.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا توجد بطاقات للمراجعة في النتائج الحالية'))); return; }
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ReviewScreen(flashcards: due)));
-    if (result != null && result is List<Flashcard>) { setState(() { for (var updated in result) { int idx = flashcards.indexWhere((c) => c.id == updated.id); if (idx != -1) flashcards[idx] = updated; } }); await _saveFlashcards(); }
+    if (result != null && result is List<Flashcard>) {
+      setState(() {
+        for (var updated in result) {
+          int idx = flashcards.indexWhere((c) => c.id == updated.id);
+          if (idx != -1) flashcards[idx] = updated;
+          idx = filteredFlashcards.indexWhere((c) => c.id == updated.id); // Update in filtered list too
+          if (idx != -1) filteredFlashcards[idx] = updated;
+        }
+        _filterFlashcards(); // Re-apply filter to ensure state is correct
+      });
+      await _saveFlashcards();
+    }
   }
 
   void _showProcessTextDialog() async {
@@ -510,14 +612,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showCardDetails(Flashcard card) {
-    showDialog(context: context, builder: (context) => AlertDialog(title: Text('تفاصيل'), content: Text('السؤال: ${card.question}\nالإجابة: ${card.answer}\nالتصنيف: ${card.category}'), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إغلاق'))]));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('تفاصيل البطاقة'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('السؤال: ${card.question}', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
+              if (card.imagePath != null)
+                Image.file(File(card.imagePath!), height: 150, width: double.infinity, fit: BoxFit.cover),
+              SizedBox(height: 8),
+              Text('الإجابة: ${card.answer}'),
+              SizedBox(height: 8),
+              Text('التصنيف: ${card.category}'),
+              SizedBox(height: 8),
+              Text('نوع الإجابة: ${card.answerType}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('إغلاق')),
+        ],
+      ),
+    );
   }
 
   Future<String?> _showCategoryDialog({required String title, String? initialCategory}) async {
-    final categories = flashcards.map((card) => card.category).toSet().toList();
+    final categories = <String>{}; // Use Set for unique categories
+    for (var card in flashcards) {
+      categories.add(card.category);
+    }
+    
     String? selectedCategory = initialCategory;
     final textController = TextEditingController();
-    if (initialCategory != null && !categories.contains(initialCategory)) textController.text = initialCategory;
+    
+    if (initialCategory != null && !categories.contains(initialCategory)) {
+      textController.text = initialCategory;
+      selectedCategory = null; // Reset selected if it's a new category
+    } else if (initialCategory != null) {
+      selectedCategory = initialCategory;
+    }
 
     return showDialog<String>(
       context: context,
@@ -528,17 +666,45 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: textController, decoration: InputDecoration(labelText: 'تصنيف جديد'), onChanged: (v) => setState(() => selectedCategory = null)),
+                TextField(
+                  controller: textController,
+                  decoration: InputDecoration(labelText: 'اسم التصنيف الجديد'),
+                  onChanged: (v) {
+                    setState(() {
+                      selectedCategory = null; // Clear selection if typing a new category
+                    });
+                  },
+                ),
                 if (categories.isNotEmpty) ...[
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text('أو اختر من الموجود:')),
-                  Wrap(spacing: 8, children: categories.map((c) => ChoiceChip(label: Text(c), selected: selectedCategory == c, onSelected: (s) => setState(() { selectedCategory = s ? c : null; textController.clear(); }))).toList()),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text('أو اختر من التصنيفات الموجودة:')),
+                  Wrap(spacing: 8.0, runSpacing: 4.0, children: categories.map((c) => ChoiceChip(
+                    label: Text(c),
+                    selected: selectedCategory == c,
+                    onSelected: (s) {
+                      setState(() {
+                        selectedCategory = s ? c : null;
+                        textController.clear(); // Clear the text field if an existing category is selected
+                      });
+                    },
+                  )).toList()),
                 ]
               ],
             ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')),
-            ElevatedButton(onPressed: () => Navigator.pop(context, textController.text.isNotEmpty ? textController.text : selectedCategory), child: Text('تأكيد')),
+            ElevatedButton(
+              onPressed: () {
+                String? finalCategory;
+                if (textController.text.isNotEmpty) {
+                  finalCategory = textController.text;
+                } else if (selectedCategory != null) {
+                  finalCategory = selectedCategory;
+                }
+                Navigator.pop(context, finalCategory);
+              },
+              child: Text('تأكيد'),
+            ),
           ],
         ),
       ),
@@ -549,5 +715,176 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red)); 
     }
+  }
+
+  // New function to share a single card
+  Future<void> _shareCard(Flashcard card) async {
+    try {
+      final textToShare = "السؤال: ${card.question}\n\nالإجابة: ${card.answer}\n\nالتصنيف: ${card.category}";
+      await Share.share(textToShare, subject: 'بطاقة تعليمية');
+    } catch (e) {
+      _showErrorSnackBar('خطأ أثناء مشاركة البطاقة: $e');
+    }
+  }
+}
+
+// --- AllFlashcardsScreen ---
+class AllFlashcardsScreen extends StatefulWidget {
+  final List<Flashcard> allFlashcards;
+  const AllFlashcardsScreen({Key? key, required this.allFlashcards}) : super(key: key);
+
+  @override
+  _AllFlashcardsScreenState createState() => _AllFlashcardsScreenState();
+}
+
+class _AllFlashcardsScreenState extends State<AllFlashcardsScreen> {
+  List<Flashcard> _filteredCards = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredCards = List.from(widget.allFlashcards);
+    _searchController.addListener(() {
+      final query = _searchController.text.toLowerCase();
+      setState(() {
+        _filteredCards = widget.allFlashcards.where((card) => 
+          card.question.toLowerCase().contains(query) ||
+          card.answer.toLowerCase().contains(query) ||
+          card.category.toLowerCase().contains(query)
+        ).toList();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('كل البطاقات (${_filteredCards.length})'),
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(kToolbarHeight), 
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'ابحث عن بطاقة...', 
+                prefixIcon: Icon(Icons.search), 
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: _filteredCards.isEmpty
+          ? Center(child: Text('لا توجد بطاقات مطابقة للبحث'))
+          : ListView.builder(
+              itemCount: _filteredCards.length,
+              itemBuilder: (context, index) {
+                final card = _filteredCards[index];
+                return Card(
+                  child: ListTile(
+                    leading: card.imagePath != null ? Icon(Icons.image, color: Colors.purple) : Icon(Icons.note),
+                    title: Column( // Use Column to stack question and answer
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(card.question, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        SizedBox(height: 4), // Space between question and answer
+                        Text(
+                          'الإجابة: ${card.answer}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                    subtitle: Text('التصنيف: ${card.category}', style: TextStyle(fontSize: 12)), // Display Category
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(icon: Icon(Icons.edit, size: 20, color: Colors.blue), onPressed: () {
+                          // TODO: Implement edit functionality for AllFlashcardsScreen
+                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Edit not fully implemented on this screen yet')));
+                        }),
+                        IconButton(icon: Icon(Icons.delete, size: 20, color: Colors.red), onPressed: () {
+                           // TODO: Implement delete functionality for AllFlashcardsScreen
+                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete not fully implemented on this screen yet')));
+                        }),
+                        // Add share button here as well
+                         IconButton(icon: Icon(Icons.share, size: 20, color: Colors.grey), onPressed: () => _shareCardFromAllCardsScreen(card)),
+                      ],
+                    ),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CardDetailScreen(card: card))),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+  // Helper to share card from AllFlashcardsScreen
+  Future<void> _shareCardFromAllCardsScreen(Flashcard card) async {
+     try {
+      final textToShare = "السؤال: ${card.question}\n\nالإجابة: ${card.answer}\n\nالتصنيف: ${card.category}";
+      await Share.share(textToShare, subject: 'بطاقة تعليمية');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء مشاركة البطاقة: $e'), backgroundColor: Colors.red));
+    }
+  }
+}
+
+// --- CardDetailScreen ---
+class CardDetailScreen extends StatelessWidget {
+  final Flashcard card;
+  const CardDetailScreen({Key? key, required this.card}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('تفاصيل البطاقة: ${card.category}')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center( 
+          child: Column( 
+            mainAxisAlignment: MainAxisAlignment.center, 
+            crossAxisAlignment: CrossAxisAlignment.center, 
+            children: [
+              if (card.imagePath != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: Image.file(
+                    File(card.imagePath!),
+                    height: 200, 
+                    width: double.infinity, 
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              SizedBox(height: 20),
+              Text(
+                'السؤال: ${card.question}',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center, 
+              ),
+              SizedBox(height: 15),
+              Text(
+                'الإجابة: ${card.answer}',
+                style: TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 15),
+              Text('التصنيف: ${card.category}', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+              SizedBox(height: 10), 
+              Text('نوع الإجابة: ${card.answerType}', style: TextStyle(fontSize: 14, color: Colors.grey[600]))
+            ]
+          )
+        ),
+      )
+    );
   }
 }
