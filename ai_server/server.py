@@ -16,7 +16,7 @@ CORS(app)
 
 @app.route('/', methods=['GET'])
 def index():
-    return "<h1>Smart Study AI Server is Running</h1><p>Connected to Gemini API</p>"
+    return "<h1>Smart Study AI Server is Running</h1>"
 
 @app.route('/api/process-text', methods=['POST'])
 def process_text_endpoint():
@@ -43,10 +43,15 @@ def process_image_endpoint():
 
 def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'):
     if not GEMINI_API_KEY:
-        return jsonify({'error': 'API Key not configured on server'}), 500
+        return jsonify({'error': 'API Key not configured'}), 500
     
-    # استخدام موديل 1.5 فلاش كونه الأكثر استقراراً ومجاني للجميع
-    model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-pro']
+    # الأسماء الدقيقة التي ظهرت في قائمتك
+    model_names = [
+        'gemini-2.0-flash-lite', # موديل خفيف، احتمالية عمله أعلى
+        'gemini-flash-latest',    # البديل لـ 1.5 فلاش
+        'gemini-pro-latest',      # البديل لـ بروو
+        'gemini-2.0-flash'        # الموديل الأساسي
+    ]
 
     last_error = ""
     for m_name in model_names:
@@ -55,7 +60,7 @@ def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'
             
             prompt = f"""أنت خبير في إنشاء المحتوى التعليمي. 
             قم باستخراج المعلومات الهامة من المدخل وحولها إلى مجموعة بطاقات تعليمية باللغة العربية.
-            يجب أن تكون الإجابة بصيغة JSON فقط، وهي عبارة عن قائمة من الكائنات.
+            يجب أن تكون الإجابة بصيغة JSON فقط.
             نوع البطاقات المطلوب: {card_type}
             """
 
@@ -89,13 +94,14 @@ def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'
                     'options': fc.get('options', ['صح', 'خطأ'] if card_type == 'trueFalse' else []),
                     'correctOptionIndex': fc.get('correctOptionIndex', 0),
                 })
-            
             return jsonify({'success': True, 'flashcards': final_flashcards})
         except Exception as e:
             last_error = str(e)
+            if "429" in last_error or "Quota" in last_error:
+                print(f"Model {m_name} reached quota limit. Trying next...")
             continue 
             
-    return jsonify({'error': f"تجاوزت حد الطلبات المجانية أو الموديل غير متاح. يرجى تجربة مفتاح API جديد. الخطأ: {last_error}"}), 500
+    return jsonify({'error': f"فشلت جميع الموديلات. آخر خطأ: {last_error}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
