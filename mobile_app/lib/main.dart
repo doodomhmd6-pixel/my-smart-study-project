@@ -312,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _processText(String text, String category) async {
+  Future<void> _processText(String text, String category, String cardType) async {
     if (text.isEmpty) {
       _showErrorSnackBar('الرجاء إدخال نص للمعالجة');
       return;
@@ -323,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
       var response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
-        body: jsonEncode({'text': text}),
+        body: jsonEncode({'text': text, 'card_type': cardType}),
       );
 
       if (response.statusCode == 307 || response.statusCode == 308 || response.statusCode == 301) {
@@ -333,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
           response = await http.post(
             uri,
             headers: {'Content-Type': 'application/json; charset=UTF-8'},
-            body: jsonEncode({'text': text}),
+            body: jsonEncode({'text': text, 'card_type': cardType}),
           );
         }
       }
@@ -349,6 +349,9 @@ class _HomeScreenState extends State<HomeScreen> {
             category: category,
             nextReviewDate: DateTime.now(),
             interval: 1,
+            answerType: cardData['answerType'] ?? cardType, // Use server-provided type or fallback
+            options: (cardData['options'] as List?)?.map((e) => e.toString()).toList() ?? [],
+            correctOptionIndex: cardData['correctOptionIndex'] as int?,
           )).toList();
           setState(() {
             flashcards.addAll(newCards);
@@ -378,13 +381,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _pickImage(ImageSource source, String category, String cardType) async {
     final XFile? image = await _picker.pickImage(source: source);
     if (image != null) {
-      final category = await _showCategoryDialog(title: 'تصنيف الصورة');
-      if (category != null && category.isNotEmpty) {
-        _processImage(image, category);
-      }
+      _processImage(image, category, cardType);
     }
   }
 
@@ -406,7 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _processImage(XFile image, String category) async {
+  Future<void> _processImage(XFile image, String category, String cardType) async {
     _showLoadingIndicator(); 
     http.Client? client;
     try {
@@ -415,6 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
       
       var request = http.MultipartRequest('POST', uri);
       request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
+      request.fields['card_type'] = cardType; // Add card_type to multipart request fields
       
       var streamedResponse = await client.send(request);
       var response = await http.Response.fromStream(streamedResponse);
@@ -425,6 +426,7 @@ class _HomeScreenState extends State<HomeScreen> {
           uri = uri.resolve(location);
           var retryRequest = http.MultipartRequest('POST', uri);
           retryRequest.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
+          retryRequest.fields['card_type'] = cardType;
           streamedResponse = await client.send(retryRequest);
           response = await http.Response.fromStream(streamedResponse);
         }
@@ -441,6 +443,9 @@ class _HomeScreenState extends State<HomeScreen> {
             category: category,
             nextReviewDate: DateTime.now(),
             interval: 1,
+            answerType: cardData['answerType'] ?? cardType, // Use server-provided type or fallback
+            options: (cardData['options'] as List?)?.map((e) => e.toString()).toList() ?? [],
+            correctOptionIndex: cardData['correctOptionIndex'] as int?,
           )).toList();
           setState(() {
             flashcards.addAll(newCards);
@@ -550,30 +555,331 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // New helper to show a dialog for card type selection
+  Future<String?> _showCardTypeSelectionDialog() async {
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('اختر نوع البطاقة التي سيتم توليدها'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text('بطاقة نصية (سؤال وإجابة)'),
+              onTap: () => Navigator.pop(context, 'text'),
+            ),
+            ListTile(
+              title: Text('اختيار من متعدد'),
+              onTap: () => Navigator.pop(context, 'multipleChoice'),
+            ),
+            ListTile(
+              title: Text('صح أو خطأ'),
+              onTap: () => Navigator.pop(context, 'trueFalse'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAddCardDialog() async {
     final category = await _showCategoryDialog(title: 'تصنيف البطاقة الجديدة');
     if (category == null) return;
+
     TextEditingController qController = TextEditingController();
     TextEditingController aController = TextEditingController();
-    String type = 'text'; String? imagePath;
+    String type = 'text';
+    String? imagePath;
+    List<TextEditingController> optionControllers = [];
+    int? correctOptionIndex;
 
-    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('إضافة بطاقة'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 100, fit: BoxFit.cover), ElevatedButton.icon(onPressed: () async { final XFile? image = await _picker.pickImage(source: ImageSource.gallery); if (image != null) setDialogState(() => imagePath = image.path); }, icon: Icon(Icons.add_a_photo), label: Text('إضافة صورة')), TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')), DropdownButtonFormField<String>(value: type, items: [DropdownMenuItem(value: 'text', child: Text('نص')), DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) => setDialogState(() => type = v!)), TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () async { final card = Flashcard(id: DateTime.now().millisecondsSinceEpoch.toString(), question: qController.text, answer: aController.text, category: category, nextReviewDate: DateTime.now(), interval: 1, answerType: type, imagePath: imagePath); setState(() {
-      flashcards.add(card);
-      filteredFlashcards.add(card);
-      _filterFlashcards();
-    }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('إضافة'))])));
+    // Initialize with some empty options for multipleChoice
+    if (type == 'multipleChoice') {
+      for (int i = 0; i < 4; i++) { // Default to 4 options
+        optionControllers.add(TextEditingController());
+      }
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('إضافة بطاقة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (imagePath != null) Image.file(File(imagePath!), height: 100, fit: BoxFit.cover),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+                    if (image != null) setDialogState(() => imagePath = image.path);
+                  },
+                  icon: Icon(Icons.add_a_photo),
+                  label: Text('إضافة صورة'),
+                ),
+                TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')),
+                DropdownButtonFormField<String>(
+                  value: type,
+                  items: [
+                    DropdownMenuItem(value: 'text', child: Text('نص')),
+                    DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')),
+                    DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))
+                  ],
+                  onChanged: (v) {
+                    setDialogState(() {
+                      type = v!;
+                      // Reset options/correct index when type changes
+                      optionControllers.clear();
+                      correctOptionIndex = null;
+                      if (type == 'multipleChoice') {
+                        for (int i = 0; i < 4; i++) { // Default to 4 options
+                          optionControllers.add(TextEditingController());
+                        }
+                      } else if (type == 'trueFalse') {
+                        // For true/false, options are fixed and managed by the UI below
+                        // correctOptionIndex will be set by radio buttons
+                      }
+                    });
+                  },
+                ),
+                if (type == 'text') // Only show answer field for text type
+                  TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))
+                else if (type == 'multipleChoice') // Options for multiple choice
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 10),
+                      Text('الخيارات:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ...List.generate(optionControllers.length, (index) => TextField(
+                        controller: optionControllers[index],
+                        decoration: InputDecoration(
+                          labelText: 'خيار ${index + 1}',
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.check_circle_outline, color: correctOptionIndex == index ? Colors.green : Colors.grey),
+                            onPressed: () => setDialogState(() => correctOptionIndex = index),
+                          ),
+                        ),
+                      )),
+                    ],
+                  )
+                else if (type == 'trueFalse') // Options for true/false
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 10),
+                      Text('الإجابة الصحيحة:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      RadioListTile<int>(
+                        title: Text('صح'),
+                        value: 0,
+                        groupValue: correctOptionIndex,
+                        onChanged: (v) => setDialogState(() => correctOptionIndex = v),
+                      ),
+                      RadioListTile<int>(
+                        title: Text('خطأ'),
+                        value: 1,
+                        groupValue: correctOptionIndex,
+                        onChanged: (v) => setDialogState(() => correctOptionIndex = v),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () async {
+                List<String>? finalOptions;
+                if (type == 'multipleChoice') {
+                  finalOptions = optionControllers.map((c) => c.text).where((text) => text.isNotEmpty).toList();
+                  if (finalOptions.length < 2 && type == 'multipleChoice') {
+                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('الرجاء إدخال خيارين على الأقل لبطاقة الاختيارات'), backgroundColor: Colors.red));
+                     return;
+                  }
+                  if (correctOptionIndex == null && type == 'multipleChoice') {
+                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('الرجاء تحديد الإجابة الصحيحة لبطاقة الاختيارات'), backgroundColor: Colors.red));
+                     return;
+                  }
+
+                } else if (type == 'trueFalse') {
+                  finalOptions = ['صح', 'خطأ']; // Hardcoded options
+                   if (correctOptionIndex == null && type == 'trueFalse') {
+                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('الرجاء تحديد الإجابة الصحيحة لبطاقة صح/خطأ'), backgroundColor: Colors.red));
+                     return;
+                  }
+                }
+
+                final card = Flashcard(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  question: qController.text,
+                  answer: aController.text.isNotEmpty ? aController.text : (type == 'text' ? 'إجابة فارغة' : ''), // Only for text type, otherwise it's handled by options/correctOptionIndex
+                  category: category,
+                  nextReviewDate: DateTime.now(),
+                  interval: 1,
+                  answerType: type,
+                  imagePath: imagePath,
+                  options: finalOptions ?? [], // Corrected: provide empty list if finalOptions is null
+                  correctOptionIndex: correctOptionIndex,
+                );
+
+                setState(() {
+                  flashcards.add(card);
+                  filteredFlashcards.add(card);
+                  _filterFlashcards();
+                });
+                await _saveFlashcards();
+                Navigator.pop(context);
+              },
+              child: Text('إضافة'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showEditCardDialog(Flashcard card) async {
     TextEditingController qController = TextEditingController(text: card.question);
+    TextEditingController aController = TextEditingController(text: card.answer); // For text type
     String? imagePath = card.imagePath;
-    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(title: Text('تعديل'), content: Column(mainAxisSize: MainAxisSize.min, children: [if (imagePath != null) Image.file(File(imagePath!), height: 80), TextButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: Icon(Icons.edit), label: Text('تغيير الصورة')), TextField(controller: qController)]), actions: [ElevatedButton(onPressed: () async { final updated = card.copyWith(question: qController.text, imagePath: imagePath); setState(() {
-      int idx = flashcards.indexWhere((c) => c.id == card.id);
-      if (idx != -1) flashcards[idx] = updated;
-      idx = filteredFlashcards.indexWhere((c) => c.id == card.id); // Update in filtered list too
-      if (idx != -1) filteredFlashcards[idx] = updated;
-      _filterFlashcards(); // Re-apply filter
-    }); await _saveFlashcards(); Navigator.pop(context); }, child: Text('حفظ'))])));
+    String type = card.answerType; // Current type
+    List<TextEditingController> optionControllers = [];
+    int? correctOptionIndex = card.correctOptionIndex;
+
+    if (type == 'multipleChoice' && card.options != null) {
+      for (var option in card.options!) {
+        optionControllers.add(TextEditingController(text: option));
+      }
+      // Ensure at least 4 controllers if less than 4 options were saved
+      while (optionControllers.length < 4) {
+        optionControllers.add(TextEditingController());
+      }
+    } else if (type == 'trueFalse') {
+      // Options are fixed, no controllers needed
+    }
+
+    showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
+      title: Text('تعديل البطاقة'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (imagePath != null) Image.file(File(imagePath!), height: 80),
+            TextButton.icon(
+              onPressed: () async {
+                final img = await _picker.pickImage(source: ImageSource.gallery);
+                if (img != null) setDialogState(() => imagePath = img.path);
+              },
+              icon: Icon(Icons.edit),
+              label: Text('تغيير الصورة'),
+            ),
+            TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')),
+            DropdownButtonFormField<String>(
+              value: type,
+              items: [
+                DropdownMenuItem(value: 'text', child: Text('نص')),
+                DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')),
+                DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))
+              ],
+              onChanged: (v) {
+                setDialogState(() {
+                  type = v!;
+                  optionControllers.clear();
+                  correctOptionIndex = null; // Reset when type changes
+                  if (type == 'multipleChoice') {
+                    for (int i = 0; i < 4; i++) {
+                      optionControllers.add(TextEditingController());
+                    }
+                  }
+                });
+              },
+            ),
+            if (type == 'text')
+              TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))
+            else if (type == 'multipleChoice')
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: 10),
+                  Text('الخيارات:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...List.generate(optionControllers.length, (index) => TextField(
+                    controller: optionControllers[index],
+                    decoration: InputDecoration(
+                      labelText: 'خيار ${index + 1}',
+                      suffixIcon: IconButton(
+                        icon: Icon(Icons.check_circle_outline, color: correctOptionIndex == index ? Colors.green : Colors.grey),
+                        onPressed: () => setDialogState(() => correctOptionIndex = index),
+                      ),
+                    ),
+                  )),
+                ],
+              )
+            else if (type == 'trueFalse')
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: 10),
+                  Text('الإجابة الصحيحة:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  RadioListTile<int>(
+                    title: Text('صح'),
+                    value: 0,
+                    groupValue: correctOptionIndex,
+                    onChanged: (v) => setDialogState(() => correctOptionIndex = v),
+                  ),
+                  RadioListTile<int>(
+                    title: Text('خطأ'),
+                    value: 1,
+                    groupValue: correctOptionIndex,
+                    onChanged: (v) => setDialogState(() => correctOptionIndex = v),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')),
+        ElevatedButton(onPressed: () async {
+          List<String>? finalOptions;
+          if (type == 'multipleChoice') {
+            finalOptions = optionControllers.map((c) => c.text).where((text) => text.isNotEmpty).toList();
+            if (finalOptions.length < 2 && type == 'multipleChoice') {
+               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('الرجاء إدخال خيارين على الأقل لبطاقة الاختيارات'), backgroundColor: Colors.red));
+               return;
+            }
+            if (correctOptionIndex == null && type == 'multipleChoice') {
+               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('الرجاء تحديد الإجابة الصحيحة لبطاقة الاختيارات'), backgroundColor: Colors.red));
+               return;
+            }
+          } else if (type == 'trueFalse') {
+            finalOptions = ['صح', 'خطأ'];
+            if (correctOptionIndex == null && type == 'trueFalse') {
+               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('الرجاء تحديد الإجابة الصحيحة لبطاقة صح/خطأ'), backgroundColor: Colors.red));
+               return;
+            }
+          }
+
+          final updated = card.copyWith(
+            question: qController.text,
+            answer: aController.text,
+            answerType: type,
+            imagePath: imagePath,
+            options: finalOptions ?? [], // Corrected: provide empty list if finalOptions is null
+            correctOptionIndex: correctOptionIndex,
+          );
+          setState(() {
+            int idx = flashcards.indexWhere((c) => c.id == card.id);
+            if (idx != -1) flashcards[idx] = updated;
+            idx = filteredFlashcards.indexWhere((c) => c.id == card.id); // Update in filtered list too
+            if (idx != -1) filteredFlashcards[idx] = updated;
+            _filterFlashcards(); // Re-apply filter
+          });
+          await _saveFlashcards();
+          Navigator.pop(context);
+        }, child: Text('حفظ'))
+      ],
+    )));
   }
 
   void _showFlashcards() {
@@ -581,10 +887,46 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startQuiz() async {
+    final categories = flashcards.map((c) => c.category).toSet().toList();
+    if (categories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا توجد بطاقات للمراجعة')));
+      return;
+    }
+
+    String? selectedCategory = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('اختر التصنيف للاختبار'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(title: Text('كل التصنيفات'), onTap: () => Navigator.pop(context, 'ALL')),
+              Divider(),
+              ...categories.map((cat) => ListTile(
+                title: Text(cat),
+                onTap: () => Navigator.pop(context, cat),
+              )).toList(),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selectedCategory == null) return;
+
     final now = DateTime.now();
-    // Filter cards for quiz: review date is before now, AND only show cards matching current search query
-    final due = filteredFlashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).toList();
-    if (due.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا توجد بطاقات للمراجعة في النتائج الحالية'))); return; }
+    List<Flashcard> due = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).toList();
+
+    if (selectedCategory != 'ALL') {
+      due = due.where((c) => c.category == selectedCategory).toList();
+    }
+
+    if (due.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا توجد بطاقات مراجعة حالية لهذا التصنيف')));
+      return;
+    }
+
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ReviewScreen(flashcards: due)));
     if (result != null && result is List<Flashcard>) {
       setState(() {
@@ -603,12 +945,30 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showProcessTextDialog() async {
     final category = await _showCategoryDialog(title: 'تصنيف البطاقات الجديدة');
     if (category == null) return;
+
+    final cardType = await _showCardTypeSelectionDialog();
+    if (cardType == null) return; // User cancelled type selection
+
     TextEditingController textController = TextEditingController();
-    showDialog(context: context, builder: (context) => AlertDialog(title: Text('معالجة نص'), content: TextField(controller: textController, decoration: InputDecoration(labelText: 'الصق النص هنا'), maxLines: 5), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () { _processText(textController.text, category); Navigator.pop(context); }, child: Text('معالجة'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: Text('معالجة نص'), content: TextField(controller: textController, decoration: InputDecoration(labelText: 'الصق النص هنا'), maxLines: 5), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () { _processText(textController.text, category, cardType); Navigator.pop(context); }, child: Text('معالجة'))]));
   }
   
   void _showImageSourceDialog() {
-    showDialog(context: context, builder: (context) => AlertDialog(title: Text('مصدر الصورة'), content: Column(mainAxisSize: MainAxisSize.min, children: [ListTile(leading: Icon(Icons.camera_alt), title: Text('الكاميرا'), onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); }), ListTile(leading: Icon(Icons.photo_library), title: Text('المعرض'), onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); })])));
+    showDialog(context: context, builder: (context) => AlertDialog(title: Text('مصدر الصورة'), content: Column(mainAxisSize: MainAxisSize.min, children: [ListTile(leading: Icon(Icons.camera_alt), title: Text('الكاميرا'), onTap: () async { 
+      Navigator.pop(context); 
+      final category = await _showCategoryDialog(title: 'تصنيف الصورة');
+      if (category == null) return;
+      final cardType = await _showCardTypeSelectionDialog();
+      if (cardType == null) return;
+      _pickImage(ImageSource.camera, category, cardType); 
+    }), ListTile(leading: Icon(Icons.photo_library), title: Text('المعرض'), onTap: () async {
+      Navigator.pop(context); 
+      final category = await _showCategoryDialog(title: 'تصنيف الصورة');
+      if (category == null) return;
+      final cardType = await _showCardTypeSelectionDialog();
+      if (cardType == null) return;
+      _pickImage(ImageSource.gallery, category, cardType); 
+    })])));
   }
 
   void _showCardDetails(Flashcard card) {
@@ -642,7 +1002,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<String?> _showCategoryDialog({required String title, String? initialCategory}) async {
-    final categories = <String>{}; // Use Set for unique categories
+    final categories = <String>{};
     for (var card in flashcards) {
       categories.add(card.category);
     }
@@ -652,7 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> {
     
     if (initialCategory != null && !categories.contains(initialCategory)) {
       textController.text = initialCategory;
-      selectedCategory = null; // Reset selected if it's a new category
+      selectedCategory = null;
     } else if (initialCategory != null) {
       selectedCategory = initialCategory;
     }
@@ -671,7 +1031,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: InputDecoration(labelText: 'اسم التصنيف الجديد'),
                   onChanged: (v) {
                     setState(() {
-                      selectedCategory = null; // Clear selection if typing a new category
+                      selectedCategory = null;
                     });
                   },
                 ),
@@ -683,7 +1043,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onSelected: (s) {
                       setState(() {
                         selectedCategory = s ? c : null;
-                        textController.clear(); // Clear the text field if an existing category is selected
+                        textController.clear();
                       });
                     },
                   )).toList()),
