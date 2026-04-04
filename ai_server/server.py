@@ -26,17 +26,28 @@ def explain_endpoint():
         answer = data.get('answer', '')
         
         if not GEMINI_API_KEY:
-            return jsonify({'error': 'API Key not configured'}), 500
+            return jsonify({'error': 'API Key not configured on server'}), 500
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"""أنت معلم خبير ومبسط للمعلومات. 
-        لقد سأل الطالب: "{question}"
-        وكانت الإجابة: "{answer}"
-        قم بتقديم شرح مبسط، مشوق، وعميق لهذه المعلومة باللغة العربية لمساعدة الطالب على فهمها بدلاً من مجرد حفظها. 
-        اجعل الشرح مختصراً ومركزاً في نقاط إذا لزم الأمر."""
+        # قائمة الموديلات المتاحة
+        model_names = ['gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest']
         
-        response = model.generate_content(prompt)
-        return jsonify({'success': True, 'explanation': response.text})
+        last_error = ""
+        for m_name in model_names:
+            try:
+                model = genai.GenerativeModel(m_name)
+                prompt = f"""أنت معلم خبير ومبسط للمعلومات. 
+                لقد سأل الطالب: "{question}"
+                وكانت الإجابة: "{answer}"
+                قم بتقديم شرح مبسط، مشوق، وعميق لهذه المعلومة باللغة العربية لمساعدة الطالب على فهمها بدلاً من مجرد حفظها. 
+                اجعل الشرح مختصراً ومركزاً في نقاط إذا لزم الأمر."""
+                
+                response = model.generate_content(prompt)
+                return jsonify({'success': True, 'explanation': response.text})
+            except Exception as e:
+                last_error = str(e)
+                continue
+                
+        return jsonify({'error': f"Gemini Error: {last_error}"}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -67,7 +78,7 @@ def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'
     if not GEMINI_API_KEY:
         return jsonify({'error': 'API Key not configured on server'}), 500
     
-    model_names = ['gemini-2.0-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest']
+    model_names = ['gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest']
 
     last_error = ""
     for m_name in model_names:
@@ -106,7 +117,7 @@ def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'
             last_error = str(e)
             continue 
             
-    return jsonify({'error': f"فشلت جميع الموديلات. آخر خطأ: {last_error}"}), 500
+    return jsonify({'error': f"Gemini Error: {last_error}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
