@@ -13,12 +13,13 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderStateMixin {
+  late List<Flashcard> _sessionCards; 
   int _currentCardIndex = 0;
   bool _isFront = true;
-  int? _selectedOptionIndex;
   bool _answerShown = false;
   bool _showTextResult = false; 
   final TextEditingController _textAnswerController = TextEditingController();
+  int? _selectedOptionIndex;
 
   late AnimationController _controller;
   late Animation<double> _animation;
@@ -26,8 +27,8 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    // عشوائية ترتيب البطاقات عند بدء كل جلسة اختبار
-    widget.flashcards.shuffle(); 
+    _sessionCards = List.from(widget.flashcards)..shuffle();
+    
     _controller = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -55,37 +56,36 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   }
 
   void _moveToNextCard() {
-    if (_currentCardIndex < widget.flashcards.length - 1) {
+    if (_currentCardIndex < _sessionCards.length - 1) {
       setState(() {
         _currentCardIndex++;
         _isFront = true;
         _answerShown = false;
-        _selectedOptionIndex = null;
         _textAnswerController.clear();
         _showTextResult = false;
+        _selectedOptionIndex = null;
         _controller.reset();
       });
     } else {
-      // العودة للقائمة الرئيسية بعد إنهاء جميع البطاقات
       Navigator.pop(context, widget.flashcards);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.flashcards.isEmpty) {
+    if (_sessionCards.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text('مراجعة البطاقات')),
         body: Center(child: Text('لا توجد بطاقات للمراجعة!')),
       );
     }
 
-    final currentCard = widget.flashcards[_currentCardIndex];
-    final progress = (_currentCardIndex) / widget.flashcards.length;
+    final currentCard = _sessionCards[_currentCardIndex];
+    final progress = (_currentCardIndex) / _sessionCards.length;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('مراجعة ${_currentCardIndex + 1}/${widget.flashcards.length}')),
+        title: Text('مراجعة ${_currentCardIndex + 1}/${_sessionCards.length}')),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -101,9 +101,7 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  // لا تسمح بالقلب باللمس للبطاقات النصية قبل الضغط على "تحقق" لضمان كتابة الإجابة
                   if (currentCard.answerType == 'text' && !_answerShown) return;
-                  
                   if (!_answerShown) {
                     setState(() => _answerShown = true);
                     _flipCard();
@@ -140,7 +138,8 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
 
   Widget _buildCardSide(Flashcard card, {required bool isFront}) {
     final theme = Theme.of(context);
-    final isTextCardWithResult = card.answerType == 'text' && _showTextResult && !isFront;
+    final isTextResult = card.answerType == 'text' && _showTextResult && !isFront;
+    final isChoiceResult = (card.answerType == 'multipleChoice' || card.answerType == 'trueFalse') && _answerShown && !isFront;
 
     return Card(
       elevation: 8,
@@ -153,60 +152,83 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              isFront ? 'السؤال' : (isTextCardWithResult ? 'النتيجة' : 'الإجابة'),
+              isFront ? 'السؤال' : 'النتيجة',
               style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 14),
             ),
-            Divider(height: 20, color: theme.colorScheme.outlineVariant),
-            
+            Divider(height: 20),
             if (isFront && card.imagePath != null)
               Expanded(flex: 3, child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(card.imagePath!), fit: BoxFit.contain))),
-            
-            SizedBox(height: 10), 
             
             Expanded(
               flex: 4,
               child: Center(
                 child: SingleChildScrollView(
-                  child: isTextCardWithResult
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('إجابتك: ', style: TextStyle(fontSize: 14, color: theme.colorScheme.onPrimaryContainer.withOpacity(0.7))),
-                          Text(_textAnswerController.text.isEmpty ? "(فارغة)" : _textAnswerController.text, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-                          Divider(height: 30, color: theme.colorScheme.onPrimaryContainer.withOpacity(0.2)),
-                          Text('الإجابة الصحيحة: ', style: TextStyle(fontSize: 14, color: theme.colorScheme.onPrimaryContainer.withOpacity(0.7))),
-                          Text(card.answer, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        ],
-                      )
-                    : Text(
+                  child: isChoiceResult 
+                    ? _buildChoiceResultSide(card) 
+                    : (isTextResult ? _buildTextResultSide(card) : Text(
                         isFront ? card.question : card.answer,
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: isFront ? theme.colorScheme.onSurface : theme.colorScheme.onPrimaryContainer),
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                         textAlign: TextAlign.center,
-                      ),
+                      )),
                 ),
               ),
             ),
-            
-            if (isFront && !_answerShown)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Icon(Icons.touch_app, color: theme.colorScheme.onSurfaceVariant.withOpacity(0.3), size: 24),
-              ),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildChoiceResultSide(Flashcard card) {
+    return Column(
+      children: [
+        Text(card.question, style: TextStyle(fontSize: 16, color: Colors.grey[700]), textAlign: TextAlign.center),
+        SizedBox(height: 20),
+        ...List.generate(card.options.length, (i) {
+          bool isCorrect = i == card.correctOptionIndex;
+          bool isSelected = i == _selectedOptionIndex;
+          
+          Color bgColor = Colors.transparent;
+          if (isCorrect) bgColor = Colors.green.withOpacity(0.2);
+          else if (isSelected) bgColor = Colors.red.withOpacity(0.2);
+
+          return Container(
+            margin: EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isCorrect ? Colors.green : (isSelected ? Colors.red : Colors.grey[300]!)),
+            ),
+            child: Row(
+              children: [
+                Icon(isCorrect ? Icons.check_circle : (isSelected ? Icons.cancel : Icons.circle_outlined), 
+                     color: isCorrect ? Colors.green : (isSelected ? Colors.red : Colors.grey)),
+                SizedBox(width: 10),
+                Expanded(child: Text(card.options[i], style: TextStyle(fontWeight: isCorrect ? FontWeight.bold : FontWeight.normal))),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildTextResultSide(Flashcard card) {
+    return Column(
+      children: [
+        Text('إجابتك:', style: TextStyle(fontSize: 14, color: Colors.grey)),
+        Text(_textAnswerController.text.isEmpty ? "(فارغة)" : _textAnswerController.text, style: TextStyle(fontSize: 18)),
+        Divider(height: 30),
+        Text('الإجابة الصحيحة:', style: TextStyle(fontSize: 14, color: Colors.grey)),
+        Text(card.answer, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
   Widget _buildActionArea(Flashcard card) {
-    if (_answerShown) {
-      return _buildRatingArea(card);
-    }
-
-    if (card.answerType == 'text') {
-      return _buildTextInputArea();
-    }
-
+    if (_answerShown) return _buildRatingArea(card);
+    if (card.answerType == 'text') return _buildTextInputArea();
     return _buildChoiceInput(card);
   }
 
@@ -215,170 +237,100 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
       children: [
         TextField(
           controller: _textAnswerController,
-          decoration: InputDecoration(
-            labelText: 'أدخل إجابتك هنا (اختياري)', 
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-          ),
+          decoration: InputDecoration(labelText: 'أدخل إجابتك', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
           onSubmitted: (_) => _submitTextAnswer(),
         ),
         SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: _submitTextAnswer, 
-          icon: Icon(Icons.check),
-          label: Text('تحقق من الإجابة'),
-          style: FilledButton.styleFrom(minimumSize: Size(double.infinity, 50)),
-        ),
+        FilledButton.icon(onPressed: _submitTextAnswer, icon: Icon(Icons.check), label: Text('تحقق من الإجابة'), style: FilledButton.styleFrom(minimumSize: Size(double.infinity, 50))),
       ],
     );
   }
 
   Widget _buildChoiceInput(Flashcard card) {
+    bool isMCQ = card.answerType == 'multipleChoice';
     return Column(
       children: [
-        if (card.answerType == 'multipleChoice')
-          ...List.generate(card.options.length, (index) => Card(
+        if (isMCQ)
+          ...List.generate(card.options.length, (i) => Card(
             margin: EdgeInsets.only(bottom: 8),
             child: RadioListTile<int>(
-              title: Text(card.options[index]),
-              value: index,
+              title: Text(card.options[i]),
+              value: i,
               groupValue: _selectedOptionIndex,
               onChanged: (v) => setState(() => _selectedOptionIndex = v),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ))
-        else // trueFalse
+        else
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: FilledButton.tonal(onPressed: () { setState(() => _selectedOptionIndex = 0); _submitAnswer(); }, child: Text('صح')),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: FilledButton.tonal(onPressed: () { setState(() => _selectedOptionIndex = 1); _submitAnswer(); }, child: Text('خطأ')),
-                ),
-              ),
+              Expanded(child: FilledButton.tonal(onPressed: () { setState(() => _selectedOptionIndex = 0); _submitAnswer(); }, child: Text('صح'))),
+              SizedBox(width: 10),
+              Expanded(child: FilledButton.tonal(onPressed: () { setState(() => _selectedOptionIndex = 1); _submitAnswer(); }, child: Text('خطأ'))),
             ],
           ),
-        if (card.answerType == 'multipleChoice')
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: FilledButton(
-              onPressed: _selectedOptionIndex != null ? _submitAnswer : null, 
-              child: Text('تأكيد الإجابة'),
-              style: FilledButton.styleFrom(minimumSize: Size(double.infinity, 50)),
-            ),
-          )
+        if (isMCQ)
+          FilledButton(onPressed: _selectedOptionIndex != null ? _submitAnswer : null, child: Text('تأكيد الإجابة'), style: FilledButton.styleFrom(minimumSize: Size(double.infinity, 50))),
       ],
     );
   }
 
   void _submitTextAnswer() {
-    setState(() {
-      _answerShown = true;
-      _showTextResult = true;
-    });
+    setState(() { _answerShown = true; _showTextResult = true; });
     _flipCard();
   }
 
   void _submitAnswer() {
-    if (_selectedOptionIndex == null) return;
     setState(() => _answerShown = true);
     _flipCard();
   }
 
   Widget _buildRatingArea(Flashcard card) {
-    bool isText = card.answerType == 'text';
-    bool isCorrect = true;
-    if (!isText) {
-      isCorrect = _selectedOptionIndex == card.correctOptionIndex;
-    }
+    bool isCorrect = card.answerType == 'text' || _selectedOptionIndex == card.correctOptionIndex;
 
     return Column(
       children: [
-        // لا نعرض أيقونة "إجابة صحيحة" تلقائية للأسئلة النصية لأن التقييم يدوي من المستخدم
-        if (!isText)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(isCorrect ? Icons.check_circle : Icons.cancel, color: isCorrect ? Colors.green : Colors.red, size: 28),
-              SizedBox(width: 8),
-              Text(isCorrect ? 'إجابة صحيحة' : 'إجابة خاطئة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isCorrect ? Colors.green : Colors.red)),
-            ],
-          ),
+        if (card.answerType != 'text')
+          Text(isCorrect ? '✅ إجابة صحيحة' : '❌ إجابة خاطئة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isCorrect ? Colors.green : Colors.red)),
         SizedBox(height: 15),
-        Text('كيف تقيم معرفتك بهذه البطاقة؟', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        SizedBox(height: 12),
-        // إذا كانت الإجابة خاطئة (في الاختيارات) يظهر فقط زر متابعة لتقليل التشتت
-        if (!isText && !isCorrect)
-          FilledButton(
-            onPressed: () => _rateCard(0), 
-            child: Text('فهمت، متابعة'),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, minimumSize: Size(double.infinity, 50)),
-          )
+        if (!isCorrect)
+          FilledButton(onPressed: () => _rateCard(0), child: Text('فهمت، سأحاول لاحقاً'), style: FilledButton.styleFrom(backgroundColor: Colors.red, minimumSize: Size(double.infinity, 50)))
         else
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildRateButton(0, 'صعب', Theme.of(context).colorScheme.error),
-              _buildRateButton(1, 'جيد', Colors.orange),
-              _buildRateButton(2, 'سهل', Colors.green),
+              Expanded(child: _rateBtn(0, 'صعب', Colors.red)),
+              SizedBox(width: 8),
+              Expanded(child: _rateBtn(1, 'جيد', Colors.orange)),
+              SizedBox(width: 8),
+              Expanded(child: _rateBtn(2, 'سهل', Colors.green)),
             ],
           ),
       ],
     );
   }
 
-  Widget _buildRateButton(int rating, String label, Color color) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: FilledButton.tonal(
-          onPressed: () => _rateCard(rating), 
-          child: Text(label),
-          style: FilledButton.styleFrom(
-            foregroundColor: color,
-            padding: EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _rateBtn(int r, String label, Color c) => FilledButton.tonal(onPressed: () => _rateCard(r), child: Text(label), style: FilledButton.styleFrom(foregroundColor: c));
 
   void _rateCard(int rating) {
-    final card = widget.flashcards[_currentCardIndex];
-    DateTime now = DateTime.now();
-    int interval = card.interval;
-    bool correct = true;
-
-    if (card.answerType != 'text') {
-      correct = _selectedOptionIndex == card.correctOptionIndex;
-    }
-    
-    if (!correct) rating = 0; 
-
-    if (rating == 0) { 
-      interval = 1;
-    } else if (rating == 1) { 
-      interval = (interval * 1.5).ceil();
+    final currentCard = _sessionCards[_currentCardIndex];
+    if (rating == 0) {
+      _sessionCards.add(currentCard);
+      _updateCardInOriginalList(currentCard, 1, false);
     } else {
-      interval = interval * 2;
+      int multiplier = (rating == 1) ? 2 : 4;
+      int nextInterval = (currentCard.interval * multiplier).clamp(1, 365);
+      _updateCardInOriginalList(currentCard, nextInterval, true);
     }
-
-    interval = interval.clamp(1, 365);
-
-    final updatedCard = card.copyWith(
-      interval: interval,
-      nextReviewDate: now.add(Duration(days: interval)),
-      lastReviewCorrect: correct,
-    );
-
-    widget.flashcards[_currentCardIndex] = updatedCard;
     _moveToNextCard();
+  }
+
+  void _updateCardInOriginalList(Flashcard card, int interval, bool correct) {
+    int idx = widget.flashcards.indexWhere((c) => c.id == card.id);
+    if (idx != -1) {
+      widget.flashcards[idx] = card.copyWith(
+        interval: interval,
+        nextReviewDate: DateTime.now().add(Duration(days: interval)),
+        lastReviewCorrect: correct,
+      );
+    }
   }
 }
