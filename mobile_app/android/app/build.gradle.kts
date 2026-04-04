@@ -14,8 +14,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
+    // تصحيح مكان jvmTarget
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -37,7 +39,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.smart_memory_app"
-        minSdk = flutter.minSdkVersion
+        // استخدام القيم المباشرة أو المتغيرات الصحيحة من إطار عمل Flutter
+        minSdk = flutter.minSdkVersion 
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -51,7 +54,6 @@ android {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             } else {
-                // Fallback to debug configuration properties
                 val debugConfig = getByName("debug")
                 storeFile = debugConfig.storeFile
                 storePassword = debugConfig.storePassword
@@ -71,6 +73,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
 
 flutter {
