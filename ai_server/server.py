@@ -18,6 +18,28 @@ CORS(app)
 def index():
     return "<h1>Smart Study AI Server is Running</h1>"
 
+@app.route('/api/explain', methods=['POST'])
+def explain_endpoint():
+    try:
+        data = request.json
+        question = data.get('question', '')
+        answer = data.get('answer', '')
+        
+        if not GEMINI_API_KEY:
+            return jsonify({'error': 'API Key not configured'}), 500
+
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"""أنت معلم خبير ومبسط للمعلومات. 
+        لقد سأل الطالب: "{question}"
+        وكانت الإجابة: "{answer}"
+        قم بتقديم شرح مبسط، مشوق، وعميق لهذه المعلومة باللغة العربية لمساعدة الطالب على فهمها بدلاً من مجرد حفظها. 
+        اجعل الشرح مختصراً ومركزاً في نقاط إذا لزم الأمر."""
+        
+        response = model.generate_content(prompt)
+        return jsonify({'success': True, 'explanation': response.text})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/process-text', methods=['POST'])
 def process_text_endpoint():
     try:
@@ -43,44 +65,29 @@ def process_image_endpoint():
 
 def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'):
     if not GEMINI_API_KEY:
-        return jsonify({'error': 'API Key not configured'}), 500
+        return jsonify({'error': 'API Key not configured on server'}), 500
     
-    # الأسماء الدقيقة التي ظهرت في قائمتك
-    model_names = [
-        'gemini-2.0-flash-lite', # موديل خفيف، احتمالية عمله أعلى
-        'gemini-flash-latest',    # البديل لـ 1.5 فلاش
-        'gemini-pro-latest',      # البديل لـ بروو
-        'gemini-2.0-flash'        # الموديل الأساسي
-    ]
+    model_names = ['gemini-2.0-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest']
 
     last_error = ""
     for m_name in model_names:
         try:
             model = genai.GenerativeModel(m_name)
-            
             prompt = f"""أنت خبير في إنشاء المحتوى التعليمي. 
             قم باستخراج المعلومات الهامة من المدخل وحولها إلى مجموعة بطاقات تعليمية باللغة العربية.
             يجب أن تكون الإجابة بصيغة JSON فقط.
             نوع البطاقات المطلوب: {card_type}
             """
+            if card_type == 'text': prompt += '[{"question": "سؤال", "answer": "إجابة"}]'
+            elif card_type == 'multipleChoice': prompt += '[{"question": "سؤال", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctOptionIndex": 0}]'
+            elif card_type == 'trueFalse': prompt += '[{"question": "سؤال", "options": ["صح", "خطأ"], "correctOptionIndex": 0}]'
 
-            if card_type == 'text':
-                prompt += '[{"question": "سؤال", "answer": "إجابة"}]'
-            elif card_type == 'multipleChoice':
-                prompt += '[{"question": "سؤال", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctOptionIndex": 0}]'
-            elif card_type == 'trueFalse':
-                prompt += '[{"question": "سؤال", "options": ["صح", "خطأ"], "correctOptionIndex": 0}]'
-
-            if is_image:
-                response = model.generate_content([prompt, input_data])
-            else:
-                response = model.generate_content(f"{prompt}\n\nالمحتوى: {input_data}")
+            if is_image: response = model.generate_content([prompt, input_data])
+            else: response = model.generate_content(f"{prompt}\n\nالمحتوى: {input_data}")
             
             content = response.text.strip()
-            if '```json' in content:
-                content = content.split('```json')[1].split('```')[0].strip()
-            elif '```' in content:
-                content = content.split('```')[1].split('```')[0].strip()
+            if '```json' in content: content = content.split('```json')[1].split('```')[0].strip()
+            elif '```' in content: content = content.split('```')[1].split('```')[0].strip()
             
             flashcard_data = json.loads(content)
             final_flashcards = []
@@ -97,8 +104,6 @@ def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'
             return jsonify({'success': True, 'flashcards': final_flashcards})
         except Exception as e:
             last_error = str(e)
-            if "429" in last_error or "Quota" in last_error:
-                print(f"Model {m_name} reached quota limit. Trying next...")
             continue 
             
     return jsonify({'error': f"فشلت جميع الموديلات. آخر خطأ: {last_error}"}), 500

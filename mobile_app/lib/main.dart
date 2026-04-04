@@ -14,12 +14,17 @@ import 'package:share_plus/share_plus.dart';
 import 'review_screen.dart';
 import 'statistics_screen.dart';
 import 'models/flashcard_model.dart';
+import 'services/notification_service.dart'; // استيراد خدمة الإشعارات
 
 late ValueNotifier<ThemeMode> themeNotifier;
 late ValueNotifier<String> serverUrlNotifier; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // تهيئة الإشعارات
+  await NotificationService.init();
+  
   final appDocumentDir = await getApplicationDocumentsDirectory();
   Hive.init(appDocumentDir.path);
   await Hive.openBox('flashcards');
@@ -72,7 +77,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFlashcards();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    await _loadFlashcards();
+    // طلب إذن الإشعارات وفحص البطاقات المستحقة
+    await NotificationService.requestPermissions();
+    _checkDueCards();
+  }
+
+  void _checkDueCards() {
+    final now = DateTime.now();
+    final dueCount = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).length;
+    NotificationService.checkAndNotifyDueCards(dueCount);
   }
 
   Future<void> _loadFlashcards() async {
