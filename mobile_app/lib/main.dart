@@ -14,17 +14,14 @@ import 'package:share_plus/share_plus.dart';
 import 'review_screen.dart';
 import 'statistics_screen.dart';
 import 'models/flashcard_model.dart';
-import 'services/notification_service.dart'; // استيراد خدمة الإشعارات
+import 'services/notification_service.dart'; 
 
 late ValueNotifier<ThemeMode> themeNotifier;
 late ValueNotifier<String> serverUrlNotifier; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // تهيئة الإشعارات
   await NotificationService.init();
-  
   final appDocumentDir = await getApplicationDocumentsDirectory();
   Hive.init(appDocumentDir.path);
   await Hive.openBox('flashcards');
@@ -56,8 +53,8 @@ class MyApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [Locale('ar', '')],
-          locale: Locale('ar', ''),
+          supportedLocales: [const Locale('ar', '')], 
+          locale: const Locale('ar', ''),
           home: HomeScreen(),
         );
       },
@@ -71,8 +68,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Flashcard> flashcards = [];
-  final ImagePicker _picker = ImagePicker();
+  List<Flashcard> flashcards = []; 
+  final ImagePicker _picker = ImagePicker(); 
 
   @override
   void initState() {
@@ -82,14 +79,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initializeApp() async {
     await _loadFlashcards();
-    // طلب إذن الإشعارات وفحص البطاقات المستحقة
     await NotificationService.requestPermissions();
     _checkDueCards();
   }
 
   void _checkDueCards() {
     final now = DateTime.now();
-    final dueCount = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).length;
+    final dueCount = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(const Duration(minutes: 1)))).length;
     NotificationService.checkAndNotifyDueCards(dueCount);
   }
 
@@ -105,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       }
-    } catch (e) { print('Error: $e'); }
+    } catch (e) { print('Error Loading Cards: $e'); }
     setState(() {
       flashcards = tempLoadedCards;
     });
@@ -120,10 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
     bool confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('حذف البطاقة'),
-        content: Text('هل أنت متأكد من رغبتك في حذف هذه البطاقة نهائياً؟'),
+        title: const Text('حذف البطاقة'),
+        content: const Text('هل أنت متأكد من رغبتك في حذف هذه البطاقة نهائياً؟'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: Text('حذف', style: TextStyle(color: Colors.red))),
         ],
       ),
@@ -134,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
         flashcards.removeWhere((c) => c.id == id);
       });
       await _saveFlashcards();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حذف البطاقة')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف البطاقة')));
     }
   }
 
@@ -143,21 +139,20 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('إعدادات الاتصال عن بُعد'),
+        title: const Text('إعدادات الاتصال عن بُعد'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('أدخل رابط السيرفر (مثلاً رابط Ngrok أو IP الجهاز):', style: TextStyle(fontSize: 13)),
-            SizedBox(height: 10),
+            const Text('أدخل رابط السيرفر الجديد:', style: TextStyle(fontSize: 13)),
+            const SizedBox(height: 10),
             TextField(
               controller: urlController,
-              decoration: InputDecoration(border: OutlineInputBorder(), hintText: 'http://your-link.ngrok-free.app'),
-              style: TextStyle(fontSize: 14),
+              decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'https://your-server.com'),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () {
               String newUrl = urlController.text.trim();
@@ -168,10 +163,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 serverUrlNotifier.value = newUrl;
                 Hive.box('settings').put('serverUrl', newUrl);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حفظ العنوان الجديد')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ العنوان الجديد')));
               }
             },
-            child: Text('حفظ'),
+            child: const Text('حفظ'),
           ),
         ],
       ),
@@ -184,11 +179,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('ذاكرتي الذكية'),
+        title: const Text('ذاكرتي الذكية'),
         actions: [
-          IconButton(icon: Icon(Icons.bar_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StatisticsScreen(flashcards: flashcards)))), 
+          IconButton(icon: const Icon(Icons.bar_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StatisticsScreen(flashcards: flashcards)))), 
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert),
             onSelected: (val) {
                if (val == 'theme') _showThemeMenu();
                if (val == 'server') _showServerSettings();
@@ -196,10 +191,10 @@ class _HomeScreenState extends State<HomeScreen> {
                if (val == 'import') _importFlashcards();
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'theme', child: Text('المظهر')),
-              PopupMenuItem(value: 'server', child: Text('إعدادات السيرفر (عن بُعد)')),
-              PopupMenuItem(value: 'export', child: Text('تصدير نسخة احتياطية')),
-              PopupMenuItem(value: 'import', child: Text('استيراد نسخة احتياطية')),
+              const PopupMenuItem(value: 'theme', child: Text('المظهر')),
+              const PopupMenuItem(value: 'server', child: Text('إعدادات السيرفر')),
+              const PopupMenuItem(value: 'export', child: Text('تصدير نسخة احتياطية')),
+              const PopupMenuItem(value: 'import', child: Text('استيراد نسخة احتياطية')),
             ],
           ),
         ],
@@ -215,20 +210,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
                     Icon(Icons.school, size: 60, color: Theme.of(context).colorScheme.primary),
-                    SizedBox(height: 10),
-                    Text('مرحباً بك في ذاكرتي الذكية', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    const Text('مرحباً بك في ذاكرتي الذكية', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     ValueListenableBuilder<String>(
                       valueListenable: serverUrlNotifier,
-                      builder: (_, url, __) => Text('متصل بـ: $url', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      builder: (_, url, __) => Text('متصل بـ: $url', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                     ),
                   ],
                 ),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             GridView.count(
               shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
+              physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 3,
               childAspectRatio: 1.1,
               mainAxisSpacing: 10,
@@ -245,22 +240,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildActionButton(icon: Icons.camera_alt, label: 'صورة', color: Colors.purple, onTap: _showImageSourceDialog),
               ],
             ),
-            SizedBox(height: 20),
-            Text('آخر البطاقات المضافة:', style: TextStyle(fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
+            const SizedBox(height: 20),
+            const Text('آخر البطاقات المضافة:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
             Expanded(
               child: displayCards.isEmpty
-                  ? Center(child: Text('لا توجد بطاقات حالياً'))
+                  ? const Center(child: Text('لا توجد بطاقات حالياً'))
                   : ListView.builder(
                       itemCount: displayCards.length,
                       itemBuilder: (context, index) {
                         final card = displayCards[index];
                         return Card(
                           child: ListTile(
-                            leading: card.imagePath != null ? Icon(Icons.image, color: Colors.purple) : Icon(Icons.note),
+                            leading: card.imagePath != null ? const Icon(Icons.image, color: Colors.purple) : const Icon(Icons.note),
                             title: Text(card.question, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('التصنيف: ${card.category}', style: TextStyle(fontSize: 12)),
-                            trailing: IconButton(icon: Icon(Icons.share, size: 20, color: Colors.grey), onPressed: () => _shareCard(card)),
+                            subtitle: Text('التصنيف: ${card.category}', style: const TextStyle(fontSize: 12)),
+                            trailing: IconButton(icon: const Icon(Icons.share, size: 20, color: Colors.grey), onPressed: () => _shareCard(card)),
                             onTap: () => _showCardDetails(card),
                           ),
                         );
@@ -276,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildActionButton({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
     return Card(
       elevation: 2,
-      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 28, color: color), Text(label, style: TextStyle(fontSize: 11))])),
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 28, color: color), Text(label, style: const TextStyle(fontSize: 11))])),
     );
   }
 
@@ -337,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (context) => const AlertDialog(
         title: Text('جاري المعالجة...'),
         content: Row(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(width: 20), Text('يرجى الانتظار')]),
       ),
@@ -374,8 +369,14 @@ class _HomeScreenState extends State<HomeScreen> {
             flashcards.addAll(newCards);
           });
           await _saveFlashcards();
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'), backgroundColor: Colors.green));
-        }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('تم إنشاء ${newCards.length} بطاقة بنجاح!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }        }
       }
     } catch (e) {
       _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
@@ -388,11 +389,11 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => SimpleDialog(
-        title: Text('اختر المظهر'),
+        title: const Text('اختر المظهر'),
         children: [
-          ListTile(title: Text('تلقائي'), onTap: () { themeNotifier.value = ThemeMode.system; Hive.box('settings').put('themeMode', 0); Navigator.pop(context); }),
-          ListTile(title: Text('فاتح'), onTap: () { themeNotifier.value = ThemeMode.light; Hive.box('settings').put('themeMode', 1); Navigator.pop(context); }),
-          ListTile(title: Text('داكن'), onTap: () { themeNotifier.value = ThemeMode.dark; Hive.box('settings').put('themeMode', 2); Navigator.pop(context); }),
+          ListTile(title: const Text('تلقائي'), onTap: () { themeNotifier.value = ThemeMode.system; Hive.box('settings').put('themeMode', 0); Navigator.pop(context); }),
+          ListTile(title: const Text('فاتح'), onTap: () { themeNotifier.value = ThemeMode.light; Hive.box('settings').put('themeMode', 1); Navigator.pop(context); }),
+          ListTile(title: const Text('داكن'), onTap: () { themeNotifier.value = ThemeMode.dark; Hive.box('settings').put('themeMode', 2); Navigator.pop(context); }),
         ],
       ),
     );
@@ -430,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         });
         await _saveFlashcards();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم الاستيراد بنجاح')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الاستيراد بنجاح')));
       }
     } catch (e) { _showErrorSnackBar('خطأ في الاستيراد: $e'); }
   }
@@ -444,8 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+          const Padding(
+            padding: EdgeInsets.all(16.0),
             child: Text('التصنيفات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           Flexible(
@@ -462,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text('($count)'),
                       IconButton(
-                        icon: Icon(Icons.share, size: 20, color: Colors.blue),
+                        icon: const Icon(Icons.share, size: 20, color: Colors.blue),
                         onPressed: () {
                           Navigator.pop(context);
                           _exportCards(flashcards.where((c) => c.category == catName).toList(), "category_$catName");
@@ -496,13 +497,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('اختر نوع البطاقة'),
+        title: const Text('اختر نوع البطاقة'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(title: Text('نصية (سؤال وإجابة)'), onTap: () => Navigator.pop(context, 'text')),
-            ListTile(title: Text('اختيار من متعدد'), onTap: () => Navigator.pop(context, 'multipleChoice')),
-            ListTile(title: Text('صح أو خطأ'), onTap: () => Navigator.pop(context, 'trueFalse')),
+            ListTile(title: const Text('نصية (سؤال وإجابة)'), onTap: () => Navigator.pop(context, 'text')),
+            ListTile(title: const Text('اختيار من متعدد'), onTap: () => Navigator.pop(context, 'multipleChoice')),
+            ListTile(title: const Text('صح أو خطأ'), onTap: () => Navigator.pop(context, 'trueFalse')),
           ],
         ),
       ),
@@ -519,20 +520,20 @@ class _HomeScreenState extends State<HomeScreen> {
     int? correctOptionIndex;
 
     await showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
-      title: Text('إضافة بطاقة'),
+      title: const Text('إضافة بطاقة'),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         if (imagePath != null) Image.file(File(imagePath!), height: 100),
-        ElevatedButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: Icon(Icons.add_a_photo), label: Text('إضافة صورة')),
-        TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')),
-        DropdownButtonFormField<String>(value: type, items: [DropdownMenuItem(value: 'text', child: Text('نص')), DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) { setDialogState(() { type = v!; optionControllers.clear(); correctOptionIndex = null; if (type == 'multipleChoice') for (int i = 0; i < 4; i++) optionControllers.add(TextEditingController()); }); }),
-        if (type == 'text') TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))
+        ElevatedButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: const Icon(Icons.add_a_photo), label: const Text('إضافة صورة')),
+        TextField(controller: qController, decoration: const InputDecoration(labelText: 'السؤال')),
+        DropdownButtonFormField<String>(value: type, items: [const DropdownMenuItem(value: 'text', child: Text('نص')), const DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), const DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) { setDialogState(() { type = v!; optionControllers.clear(); correctOptionIndex = null; if (type == 'multipleChoice') for (int i = 0; i < 4; i++) optionControllers.add(TextEditingController()); }); }),
+        if (type == 'text') TextField(controller: aController, decoration: const InputDecoration(labelText: 'الإجابة'))
         else if (type == 'multipleChoice') Column(children: List.generate(optionControllers.length, (i) => TextField(controller: optionControllers[i], decoration: InputDecoration(labelText: 'خيار ${i + 1}', suffixIcon: IconButton(icon: Icon(Icons.check_circle, color: correctOptionIndex == i ? Colors.green : Colors.grey), onPressed: () => setDialogState(() => correctOptionIndex = i))))))
-        else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
+        else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: const Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: const Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
       ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () async {
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), ElevatedButton(onPressed: () async {
         final card = Flashcard(id: DateTime.now().millisecondsSinceEpoch.toString(), question: qController.text, answer: aController.text, category: category, nextReviewDate: DateTime.now(), interval: 1, answerType: type, imagePath: imagePath, options: optionControllers.map((c) => c.text).toList(), correctOptionIndex: correctOptionIndex);
         setState(() => flashcards.add(card)); await _saveFlashcards(); Navigator.pop(context);
-      }, child: Text('إضافة'))]
+      }, child: const Text('إضافة'))]
     )));
   }
 
@@ -544,47 +545,72 @@ class _HomeScreenState extends State<HomeScreen> {
     int? correctOptionIndex = card.correctOptionIndex;
 
     await showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
-      title: Text('تعديل البطاقة'),
+      title: const Text('تعديل البطاقة'),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         if (imagePath != null) Image.file(File(imagePath!), height: 80),
-        TextField(controller: qController, decoration: InputDecoration(labelText: 'السؤال')),
-        if (type == 'text') TextField(controller: aController, decoration: InputDecoration(labelText: 'الإجابة'))
+        TextField(controller: qController, decoration: const InputDecoration(labelText: 'السؤال')),
+        if (type == 'text') TextField(controller: aController, decoration: const InputDecoration(labelText: 'الإجابة'))
         else if (type == 'multipleChoice') Column(children: List.generate(optionControllers.length, (i) => TextField(controller: optionControllers[i], decoration: InputDecoration(labelText: 'خيار ${i + 1}', suffixIcon: IconButton(icon: Icon(Icons.check_circle, color: correctOptionIndex == i ? Colors.green : Colors.grey), onPressed: () => setDialogState(() => correctOptionIndex = i))))))
-        else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
+        else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: const Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: const Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
       ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إلغاء')), ElevatedButton(onPressed: () async {
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), ElevatedButton(onPressed: () async {
         final updated = card.copyWith(question: qController.text, answer: aController.text, imagePath: imagePath, options: optionControllers.map((c) => c.text).toList(), correctOptionIndex: correctOptionIndex);
         setState(() { int idx = flashcards.indexWhere((c) => c.id == card.id); flashcards[idx] = updated; });
         await _saveFlashcards(); Navigator.pop(context);
-      }, child: Text('حفظ'))]
+      }, child: const Text('حفظ'))]
     )));
   }
 
   void _startQuiz() async {
-    final categories = flashcards.map((c) => c.category).toSet().toList();
-    String? cat = await showDialog<String>(context: context, builder: (context) => AlertDialog(title: Text('اختر التصنيف'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [ListTile(title: Text('كل التصنيفات'), onTap: () => Navigator.pop(context, 'ALL')), ...categories.map((c) => ListTile(title: Text(c), onTap: () => Navigator.pop(context, c)))]))));
-    if (cat == null) return;
     final now = DateTime.now();
-    var due = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(Duration(minutes: 1)))).toList();
-    if (cat != 'ALL') due = due.where((c) => c.category == cat).toList();
-    if (due.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('لا توجد بطاقات للمراجعة حالياً'))); return; }
+    // الحصول على التصنيفات التي لديها بطاقات مستحقة فقط
+    final dueCardsOverall = flashcards.where((c) => c.nextReviewDate.isBefore(now.add(const Duration(minutes: 1)))).toList();
+    final categoriesWithDueCards = dueCardsOverall.map((c) => c.category).toSet().toList();
+
+    if (categoriesWithDueCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد بطاقات للمراجعة حالياً')));
+      return;
+    }
+
+    String? cat = await showDialog<String>(context: context, builder: (context) => AlertDialog(
+      title: const Text('اختر التصنيف'), 
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(title: const Text('كل التصنيفات المستحقة'), onTap: () => Navigator.pop(context, 'ALL')),
+        ...categoriesWithDueCards.map((c) => ListTile(title: Text(c), onTap: () => Navigator.pop(context, c)))
+      ]))));
+
+    if (cat == null) return;
+    
+    var due = (cat == 'ALL') 
+        ? dueCardsOverall 
+        : dueCardsOverall.where((c) => c.category == cat).toList();
+
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ReviewScreen(flashcards: due)));
-    if (result != null) { _loadFlashcards(); await _saveFlashcards(); }
+    
+    if (result != null && result is List<Flashcard>) {
+       setState(() {
+         for (var updatedCard in result) {
+           int index = flashcards.indexWhere((c) => c.id == updatedCard.id);
+           if (index != -1) flashcards[index] = updatedCard;
+         }
+       });
+       await _saveFlashcards();
+    }
   }
 
   void _showProcessTextDialog() async {
     final cat = await _showCategoryDialog(title: 'تصنيف البطاقات'); if (cat == null) return;
     final type = await _showCardTypeSelectionDialog(); if (type == null) return;
     TextEditingController textC = TextEditingController();
-    showDialog(context: context, builder: (context) => AlertDialog(title: Text('معالجة نص'), content: TextField(controller: textC, maxLines: 5), actions: [ElevatedButton(onPressed: () { _processText(textC.text, cat, type); Navigator.pop(context); }, child: Text('معالجة'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('معالجة نص'), content: TextField(controller: textC, maxLines: 5), actions: [ElevatedButton(onPressed: () { _processText(textC.text, cat, type); Navigator.pop(context); }, child: const Text('معالجة'))]));
   }
 
   void _showImageSourceDialog() {
-    showDialog(context: context, builder: (context) => AlertDialog(title: Text('مصدر الصورة'), content: Column(mainAxisSize: MainAxisSize.min, children: [ListTile(leading: Icon(Icons.camera_alt), title: Text('الكاميرا'), onTap: () async { Navigator.pop(context); final cat = await _showCategoryDialog(title: 'التصنيف'); final type = await _showCardTypeSelectionDialog(); if (cat != null && type != null) _pickImage(ImageSource.camera, cat, type); }), ListTile(leading: Icon(Icons.photo_library), title: Text('المعرض'), onTap: () async { Navigator.pop(context); final cat = await _showCategoryDialog(title: 'التصنيف'); final type = await _showCardTypeSelectionDialog(); if (cat != null && type != null) _pickImage(ImageSource.gallery, cat, type); })])));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('مصدر الصورة'), content: Column(mainAxisSize: MainAxisSize.min, children: [ListTile(leading: const Icon(Icons.camera_alt), title: const Text('الكاميرا'), onTap: () async { Navigator.pop(context); final cat = await _showCategoryDialog(title: 'التصنيف'); final type = await _showCardTypeSelectionDialog(); if (cat != null && type != null) _pickImage(ImageSource.camera, cat, type); }), ListTile(leading: const Icon(Icons.photo_library), title: const Text('المعرض'), onTap: () async { Navigator.pop(context); final cat = await _showCategoryDialog(title: 'التصنيف'); final type = await _showCardTypeSelectionDialog(); if (cat != null && type != null) _pickImage(ImageSource.gallery, cat, type); })])));
   }
 
   void _showCardDetails(Flashcard card) {
-    showDialog(context: context, builder: (context) => AlertDialog(title: Text('تفاصيل'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('السؤال: ${card.question}'), Text('الإجابة: ${card.answer}'), Text('التصنيف: ${card.category}')]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('إغلاق'))]));
+    showDialog(context: context, builder: (context) => AlertDialog(title: const Text('تفاصيل'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('السؤال: ${card.question}'), Text('الإجابة: ${card.answer}'), Text('التصنيف: ${card.category}')]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))]));
   }
 
   Future<String?> _showCategoryDialog({required String title}) async {
@@ -592,8 +618,8 @@ class _HomeScreenState extends State<HomeScreen> {
     TextEditingController textC = TextEditingController(); String? selected;
     return showDialog<String>(context: context, builder: (context) => StatefulBuilder(builder: (context, setState) => AlertDialog(
       title: Text(title),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: textC, decoration: InputDecoration(labelText: 'تصنيف جديد')), Wrap(children: categories.map((c) => ChoiceChip(label: Text(c), selected: selected == c, onSelected: (s) => setState(() => selected = s ? c : null))).toList())],),
-      actions: [ElevatedButton(onPressed: () => Navigator.pop(context, textC.text.isNotEmpty ? textC.text : selected), child: Text('تأكيد'))]
+      content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: textC, decoration: const InputDecoration(labelText: 'تصنيف جديد')), Wrap(children: categories.map((c) => ChoiceChip(label: Text(c), selected: selected == c, onSelected: (s) => setState(() => selected = s ? c : null))).toList())],),
+      actions: [ElevatedButton(onPressed: () => Navigator.pop(context, textC.text.isNotEmpty ? textC.text : selected), child: const Text('تأكيد'))]
     )));
   }
 
@@ -621,17 +647,24 @@ class _AllFlashcardsScreenState extends State<AllFlashcardsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title), bottom: PreferredSize(preferredSize: Size.fromHeight(60), child: Padding(padding: EdgeInsets.all(8), child: TextField(controller: _search, decoration: InputDecoration(hintText: 'بحث...', prefixIcon: Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))))))),
+      appBar: AppBar(title: Text(widget.title), bottom: PreferredSize(preferredSize: const Size.fromHeight(60), child: Padding(padding: EdgeInsets.all(8), child: TextField(controller: _search, decoration: InputDecoration(hintText: 'بحث...', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))))))),
       body: ListView.builder(
         itemCount: _filtered.length,
         itemBuilder: (context, i) {
           final c = _filtered[i];
           return Card(child: ListTile(
             title: Text(c.question),
-            subtitle: Text('إجابة: ${c.answer}\nتصنيف: ${c.category}', style: TextStyle(fontSize: 12)),
+            subtitle: Text('إجابة: ${c.answer}\nتصنيف: ${c.category}', style: const TextStyle(fontSize: 12)),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: Icon(Icons.edit, color: Colors.blue), onPressed: () async { await widget.onEdit(c); setState(() { _filtered = Hive.box('flashcards').get('cards').map((m) => Flashcard.fromMap(Map<String, dynamic>.from(m))).toList(); if (widget.title != 'كل البطاقات') { String cat = widget.title.replaceFirst('تصنيف: ', ''); _filtered = _filtered.where((fc) => fc.category == cat).toList(); } }); }),
-              IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () async { await widget.onDelete(c.id); setState(() { _filtered.removeWhere((item) => item.id == c.id); }); }),
+              IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () async { 
+                await widget.onEdit(c); 
+                setState(() { 
+                  _filtered = Hive.box('flashcards').get('cards').map((m) => Flashcard.fromMap(Map<String, dynamic>.from(m))).toList(); if (widget.title != 'كل البطاقات') { String cat = widget.title.replaceFirst('تصنيف: ', ''); _filtered = _filtered.where((fc) => fc.category == cat).toList(); } 
+                }); 
+              }),
+              IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async { 
+                await widget.onDelete(c.id); setState(() { _filtered.removeWhere((item) => item.id == c.id); });
+              }),
             ]),
           ));
         },

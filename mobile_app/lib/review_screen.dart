@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'main.dart'; // للوصول إلى رابط السيرفر
+import 'main.dart';
 
 class ReviewScreen extends StatefulWidget {
   final List<Flashcard> flashcards;
@@ -16,14 +16,18 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderStateMixin {
-  late List<Flashcard> _sessionCards; 
+  late List<Flashcard> _sessionCards;
   int _currentCardIndex = 0;
   bool _isFront = true;
   bool _answerShown = false;
-  bool _showTextResult = false; 
+  bool _showTextResult = false;
   final TextEditingController _textAnswerController = TextEditingController();
   int? _selectedOptionIndex;
-  bool _isExplaining = false; // لحالة تحميل الشرح
+  bool _isExplaining = false;
+
+  // متغيرات لحفظ الترتيب العشوائي للخيارات لكل بطاقة
+  late List<String> _shuffledOptions;
+  late int _shuffledCorrectIndex;
 
   late AnimationController _controller;
   late Animation<double> _animation;
@@ -32,6 +36,8 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _sessionCards = List.from(widget.flashcards)..shuffle();
+    _prepareCardOptions(); // تجهيز خيارات أول بطاقة
+
     _controller = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -42,6 +48,21 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     ));
   }
 
+  // دالة لتجهيز خيارات البطاقة الحالية بشكل عشوائي
+  void _prepareCardOptions() {
+    final card = _sessionCards[_currentCardIndex];
+    if (card.answerType == 'multipleChoice' || card.answerType == 'trueFalse') {
+      // حفظ الإجابة الصحيحة الأصلية
+      String correctText = card.options[card.correctOptionIndex ?? 0];
+
+      // خلط الخيارات
+      _shuffledOptions = List.from(card.options)..shuffle();
+
+      // إيجاد مكان الإجابة الصحيحة الجديد
+      _shuffledCorrectIndex = _shuffledOptions.indexOf(correctText);
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -50,11 +71,8 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   }
 
   void _flipCard() {
-    if (_isFront) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
+    if (_isFront) _controller.forward();
+    else _controller.reverse();
     setState(() => _isFront = !_isFront);
   }
 
@@ -67,14 +85,15 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
         _textAnswerController.clear();
         _showTextResult = false;
         _selectedOptionIndex = null;
+        _prepareCardOptions(); // تجهيز خيارات البطاقة التالية
         _controller.reset();
       });
     } else {
+      // إرجاع القائمة الكاملة المحدثة لضمان حفظ الإحصائيات
       Navigator.pop(context, widget.flashcards);
     }
   }
 
-  // دالة طلب الشرح من الذكاء الاصطناعي
   Future<void> _showAIExplanation(Flashcard card) async {
     setState(() => _isExplaining = true);
     try {
@@ -104,13 +123,7 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.lightbulb, color: Colors.orange),
-            SizedBox(width: 10),
-            Text('شرح الذكاء الاصطناعي'),
-          ],
-        ),
+        title: Row(children: [Icon(Icons.lightbulb, color: Colors.orange), SizedBox(width: 10), Text('شرح الذكاء الاصطناعي')]),
         content: SingleChildScrollView(child: Text(text, style: TextStyle(fontSize: 16, height: 1.5))),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('فهمت'))],
       ),
@@ -124,7 +137,6 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     if (_sessionCards.isEmpty) return Scaffold(appBar: AppBar(title: Text('مراجعة')), body: Center(child: Text('فارغ')));
-
     final currentCard = _sessionCards[_currentCardIndex];
     final progress = (_currentCardIndex) / _sessionCards.length;
 
@@ -149,9 +161,9 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
                     return Transform(
                       transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(angle),
                       alignment: Alignment.center,
-                      child: angle < pi / 2 
-                        ? _buildCardSide(currentCard, isFront: true) 
-                        : Transform(transform: Matrix4.identity()..rotateY(pi), alignment: Alignment.center, child: _buildCardSide(currentCard, isFront: false)),
+                      child: angle < pi / 2
+                          ? _buildCardSide(currentCard, isFront: true)
+                          : Transform(transform: Matrix4.identity()..rotateY(pi), alignment: Alignment.center, child: _buildCardSide(currentCard, isFront: false)),
                     );
                   },
                 ),
@@ -201,14 +213,14 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
       children: [
         Text(card.question, style: TextStyle(fontSize: 16, color: Colors.grey[700]), textAlign: TextAlign.center),
         SizedBox(height: 20),
-        ...List.generate(card.options.length, (i) {
-          bool isCorrect = i == card.correctOptionIndex;
+        ...List.generate(_shuffledOptions.length, (i) {
+          bool isCorrect = i == _shuffledCorrectIndex;
           bool isSelected = i == _selectedOptionIndex;
           Color bgColor = isCorrect ? Colors.green.withOpacity(0.2) : (isSelected ? Colors.red.withOpacity(0.2) : Colors.transparent);
           return Container(
             margin: EdgeInsets.only(bottom: 8), padding: EdgeInsets.all(12),
             decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(10), border: Border.all(color: isCorrect ? Colors.green : (isSelected ? Colors.red : Colors.grey[300]!))),
-            child: Row(children: [Icon(isCorrect ? Icons.check_circle : (isSelected ? Icons.cancel : Icons.circle_outlined), color: isCorrect ? Colors.green : (isSelected ? Colors.red : Colors.grey)), SizedBox(width: 10), Expanded(child: Text(card.options[i], style: TextStyle(fontWeight: isCorrect ? FontWeight.bold : FontWeight.normal)))]),
+            child: Row(children: [Icon(isCorrect ? Icons.check_circle : (isSelected ? Icons.cancel : Icons.circle_outlined), color: isCorrect ? Colors.green : (isSelected ? Colors.red : Colors.grey)), SizedBox(width: 10), Expanded(child: Text(_shuffledOptions[i], style: TextStyle(fontWeight: isCorrect ? FontWeight.bold : FontWeight.normal)))]),
           );
         }),
       ],
@@ -247,8 +259,8 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     bool isMCQ = card.answerType == 'multipleChoice';
     return Column(
       children: [
-        if (isMCQ) ...List.generate(card.options.length, (i) => Card(margin: EdgeInsets.only(bottom: 8), child: RadioListTile<int>(title: Text(card.options[i]), value: i, groupValue: _selectedOptionIndex, onChanged: (v) => setState(() => _selectedOptionIndex = v))))
-        else Row(children: [Expanded(child: FilledButton.tonal(onPressed: () { _selectedOptionIndex = 0; _submitAnswer(); }, child: Text('صح'))), SizedBox(width: 10), Expanded(child: FilledButton.tonal(onPressed: () { _selectedOptionIndex = 1; _submitAnswer(); }, child: Text('خطأ')))]),
+        if (isMCQ) ...List.generate(_shuffledOptions.length, (i) => Card(margin: EdgeInsets.only(bottom: 8), child: RadioListTile<int>(title: Text(_shuffledOptions[i]), value: i, groupValue: _selectedOptionIndex, onChanged: (v) => setState(() => _selectedOptionIndex = v))))
+        else Row(children: [Expanded(child: FilledButton.tonal(onPressed: () { _selectedOptionIndex = _shuffledOptions.indexOf('صح'); _submitAnswer(); }, child: Text('صح'))), SizedBox(width: 10), Expanded(child: FilledButton.tonal(onPressed: () { _selectedOptionIndex = _shuffledOptions.indexOf('خطأ'); _submitAnswer(); }, child: Text('خطأ')))]),
         if (isMCQ) FilledButton(onPressed: _selectedOptionIndex != null ? _submitAnswer : null, child: Text('تأكيد الإجابة'), style: FilledButton.styleFrom(minimumSize: Size(double.infinity, 50))),
       ],
     );
@@ -258,7 +270,7 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   void _submitAnswer() { setState(() => _answerShown = true); _flipCard(); }
 
   Widget _buildRatingArea(Flashcard card) {
-    bool isCorrect = card.answerType == 'text' || _selectedOptionIndex == card.correctOptionIndex;
+    bool isCorrect = card.answerType == 'text' || _selectedOptionIndex == _shuffledCorrectIndex;
     return Column(
       children: [
         Row(
@@ -283,8 +295,18 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
 
   void _rateCard(int rating) {
     final currentCard = _sessionCards[_currentCardIndex];
-    if (rating == 0) { _sessionCards.add(currentCard); _updateCardInOriginalList(currentCard, 1, false); }
-    else { int multiplier = (rating == 1) ? 2 : 4; int nextInterval = (currentCard.interval * multiplier).clamp(1, 365); _updateCardInOriginalList(currentCard, nextInterval, true); }
+    bool isActuallyCorrect = currentCard.answerType == 'text' || _selectedOptionIndex == _shuffledCorrectIndex;
+
+    if (!isActuallyCorrect) rating = 0;
+
+    if (rating == 0) {
+      _sessionCards.add(currentCard);
+      _updateCardInOriginalList(currentCard, 1, false);
+    } else {
+      int multiplier = (rating == 1) ? 2 : 4;
+      int nextInterval = (currentCard.interval * multiplier).clamp(1, 365);
+      _updateCardInOriginalList(currentCard, nextInterval, true);
+    }
     _moveToNextCard();
   }
 
