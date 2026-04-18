@@ -10,14 +10,14 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart'; 
+import 'package:share_plus/share_plus.dart';
 import 'review_screen.dart';
 import 'statistics_screen.dart';
 import 'models/flashcard_model.dart';
-import 'services/notification_service.dart'; 
+import 'services/notification_service.dart';
 
 late ValueNotifier<ThemeMode> themeNotifier;
-late ValueNotifier<String> serverUrlNotifier; 
+late ValueNotifier<String> serverUrlNotifier;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +26,7 @@ void main() async {
   Hive.init(appDocumentDir.path);
   await Hive.openBox('flashcards');
   final settings = await Hive.openBox('settings');
-  
+
   final themeIndex = settings.get('themeMode', defaultValue: 0) as int;
   themeNotifier = ValueNotifier(ThemeMode.values[themeIndex]);
 
@@ -53,7 +53,7 @@ class MyApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: [const Locale('ar', '')], 
+          supportedLocales: [const Locale('ar', '')],
           locale: const Locale('ar', ''),
           home: HomeScreen(),
         );
@@ -68,8 +68,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Flashcard> flashcards = []; 
-  final ImagePicker _picker = ImagePicker(); 
+  List<Flashcard> flashcards = [];
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
               String newUrl = urlController.text.trim();
               if (newUrl.isNotEmpty) {
                 if (newUrl.startsWith('http://') && newUrl.contains('onrender.com')) {
-                   newUrl = newUrl.replaceFirst('http://', 'https://');
+                  newUrl = newUrl.replaceFirst('http://', 'https://');
                 }
                 serverUrlNotifier.value = newUrl;
                 Hive.box('settings').put('serverUrl', newUrl);
@@ -181,14 +181,14 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('ذاكرتي الذكية'),
         actions: [
-          IconButton(icon: const Icon(Icons.bar_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StatisticsScreen(flashcards: flashcards)))), 
+          IconButton(icon: const Icon(Icons.bar_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => StatisticsScreen(flashcards: flashcards)))),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (val) {
-               if (val == 'theme') _showThemeMenu();
-               if (val == 'server') _showServerSettings();
-               if (val == 'export') _exportAllCards();
-               if (val == 'import') _importFlashcards();
+              if (val == 'theme') _showThemeMenu();
+              if (val == 'server') _showServerSettings();
+              if (val == 'export') _exportAllCards();
+              if (val == 'import') _importFlashcards();
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'theme', child: Text('المظهر')),
@@ -230,9 +230,9 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisSpacing: 10,
               children: [
                 _buildActionButton(icon: Icons.add, label: 'إضافة', color: Colors.green, onTap: _showAddCardDialog),
-                _buildActionButton(icon: Icons.style, label: 'البطاقات', color: Colors.blue, onTap: () async { 
-                   await Navigator.push(context, MaterialPageRoute(builder: (context) => AllFlashcardsScreen(allFlashcards: flashcards, onDelete: _deleteCard, onEdit: _showEditCardDialog))); 
-                   _loadFlashcards();
+                _buildActionButton(icon: Icons.style, label: 'البطاقات', color: Colors.blue, onTap: () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (context) => AllFlashcardsScreen(allFlashcards: flashcards, onDelete: _deleteCard, onEdit: _showEditCardDialog)));
+                  _loadFlashcards();
                 }),
                 _buildActionButton(icon: Icons.category, label: 'التصنيفات', color: Colors.cyan, onTap: _showCategoriesList),
                 _buildActionButton(icon: Icons.quiz, label: 'اختبار', color: Colors.orange, onTap: _startQuiz),
@@ -247,20 +247,20 @@ class _HomeScreenState extends State<HomeScreen> {
               child: displayCards.isEmpty
                   ? const Center(child: Text('لا توجد بطاقات حالياً'))
                   : ListView.builder(
-                      itemCount: displayCards.length,
-                      itemBuilder: (context, index) {
-                        final card = displayCards[index];
-                        return Card(
-                          child: ListTile(
-                            leading: card.imagePath != null ? const Icon(Icons.image, color: Colors.purple) : const Icon(Icons.note),
-                            title: Text(card.question, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('التصنيف: ${card.category}', style: const TextStyle(fontSize: 12)),
-                            trailing: IconButton(icon: const Icon(Icons.share, size: 20, color: Colors.grey), onPressed: () => _shareCard(card)),
-                            onTap: () => _showCardDetails(card),
-                          ),
-                        );
-                      },
+                itemCount: displayCards.length,
+                itemBuilder: (context, index) {
+                  final card = displayCards[index];
+                  return Card(
+                    child: ListTile(
+                      leading: card.imagePath != null ? const Icon(Icons.image, color: Colors.purple) : const Icon(Icons.note),
+                      title: Text(card.question, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('التصنيف: ${card.category}', style: const TextStyle(fontSize: 12)),
+                      trailing: IconButton(icon: const Icon(Icons.share, size: 20, color: Colors.grey), onPressed: () => _shareCard(card)),
+                      onTap: () => _showCardDetails(card),
                     ),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -280,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _showErrorSnackBar('الرجاء إدخال نص للمعالجة');
       return;
     }
-    _showLoadingIndicator(); 
+    _showLoadingIndicator();
     try {
       Uri uri = Uri.parse('${serverUrlNotifier.value}/api/process-text');
       var response = await http.post(
@@ -340,13 +340,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _processImage(XFile image, String category, String cardType) async {
-    _showLoadingIndicator(); 
+    _showLoadingIndicator();
     try {
       Uri uri = Uri.parse('${serverUrlNotifier.value}/api/process-image');
       var request = http.MultipartRequest('POST', uri);
       request.files.add(await http.MultipartFile.fromPath('image', image.path, contentType: MediaType('image', 'jpeg')));
       request.fields['card_type'] = cardType;
-      
+
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
@@ -381,7 +381,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _showErrorSnackBar('خطأ في الاتصال بالسيرفر: $e');
     } finally {
-      if (mounted) Navigator.of(context).pop(); 
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
@@ -475,12 +475,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.pop(context);
                     final filteredCards = flashcards.where((c) => c.category == catName).toList();
                     await Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => AllFlashcardsScreen(
-                        allFlashcards: filteredCards, 
-                        onDelete: _deleteCard, 
-                        onEdit: _showEditCardDialog,
-                        title: 'تصنيف: $catName',
-                      )
+                        builder: (context) => AllFlashcardsScreen(
+                          allFlashcards: filteredCards,
+                          onDelete: _deleteCard,
+                          onEdit: _showEditCardDialog,
+                          title: 'تصنيف: $catName',
+                        )
                     ));
                     _loadFlashcards();
                   },
@@ -520,20 +520,20 @@ class _HomeScreenState extends State<HomeScreen> {
     int? correctOptionIndex;
 
     await showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
-      title: const Text('إضافة بطاقة'),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (imagePath != null) Image.file(File(imagePath!), height: 100),
-        ElevatedButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: const Icon(Icons.add_a_photo), label: const Text('إضافة صورة')),
-        TextField(controller: qController, decoration: const InputDecoration(labelText: 'السؤال')),
-        DropdownButtonFormField<String>(value: type, items: [const DropdownMenuItem(value: 'text', child: Text('نص')), const DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), const DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) { setDialogState(() { type = v!; optionControllers.clear(); correctOptionIndex = null; if (type == 'multipleChoice') for (int i = 0; i < 4; i++) optionControllers.add(TextEditingController()); }); }),
-        if (type == 'text') TextField(controller: aController, decoration: const InputDecoration(labelText: 'الإجابة'))
-        else if (type == 'multipleChoice') Column(children: List.generate(optionControllers.length, (i) => TextField(controller: optionControllers[i], decoration: InputDecoration(labelText: 'خيار ${i + 1}', suffixIcon: IconButton(icon: Icon(Icons.check_circle, color: correctOptionIndex == i ? Colors.green : Colors.grey), onPressed: () => setDialogState(() => correctOptionIndex = i))))))
-        else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: const Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: const Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), ElevatedButton(onPressed: () async {
-        final card = Flashcard(id: DateTime.now().millisecondsSinceEpoch.toString(), question: qController.text, answer: aController.text, category: category, nextReviewDate: DateTime.now(), interval: 1, answerType: type, imagePath: imagePath, options: optionControllers.map((c) => c.text).toList(), correctOptionIndex: correctOptionIndex);
-        setState(() => flashcards.add(card)); await _saveFlashcards(); Navigator.pop(context);
-      }, child: const Text('إضافة'))]
+        title: const Text('إضافة بطاقة'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (imagePath != null) Image.file(File(imagePath!), height: 100),
+          ElevatedButton.icon(onPressed: () async { final img = await _picker.pickImage(source: ImageSource.gallery); if (img != null) setDialogState(() => imagePath = img.path); }, icon: const Icon(Icons.add_a_photo), label: const Text('إضافة صورة')),
+          TextField(controller: qController, decoration: const InputDecoration(labelText: 'السؤال')),
+          DropdownButtonFormField<String>(value: type, items: [const DropdownMenuItem(value: 'text', child: Text('نص')), const DropdownMenuItem(value: 'multipleChoice', child: Text('اختيارات')), const DropdownMenuItem(value: 'trueFalse', child: Text('صح/خطأ'))], onChanged: (v) { setDialogState(() { type = v!; optionControllers.clear(); correctOptionIndex = null; if (type == 'multipleChoice') for (int i = 0; i < 4; i++) optionControllers.add(TextEditingController()); }); }),
+          if (type == 'text') TextField(controller: aController, decoration: const InputDecoration(labelText: 'الإجابة'))
+          else if (type == 'multipleChoice') Column(children: List.generate(optionControllers.length, (i) => TextField(controller: optionControllers[i], decoration: InputDecoration(labelText: 'خيار ${i + 1}', suffixIcon: IconButton(icon: Icon(Icons.check_circle, color: correctOptionIndex == i ? Colors.green : Colors.grey), onPressed: () => setDialogState(() => correctOptionIndex = i))))))
+          else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: const Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: const Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), ElevatedButton(onPressed: () async {
+          final card = Flashcard(id: DateTime.now().millisecondsSinceEpoch.toString(), question: qController.text, answer: aController.text, category: category, nextReviewDate: DateTime.now(), interval: 1, answerType: type, imagePath: imagePath, options: optionControllers.map((c) => c.text).toList(), correctOptionIndex: correctOptionIndex);
+          setState(() => flashcards.add(card)); await _saveFlashcards(); Navigator.pop(context);
+        }, child: const Text('إضافة'))]
     )));
   }
 
@@ -545,19 +545,19 @@ class _HomeScreenState extends State<HomeScreen> {
     int? correctOptionIndex = card.correctOptionIndex;
 
     await showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
-      title: const Text('تعديل البطاقة'),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (imagePath != null) Image.file(File(imagePath!), height: 80),
-        TextField(controller: qController, decoration: const InputDecoration(labelText: 'السؤال')),
-        if (type == 'text') TextField(controller: aController, decoration: const InputDecoration(labelText: 'الإجابة'))
-        else if (type == 'multipleChoice') Column(children: List.generate(optionControllers.length, (i) => TextField(controller: optionControllers[i], decoration: InputDecoration(labelText: 'خيار ${i + 1}', suffixIcon: IconButton(icon: Icon(Icons.check_circle, color: correctOptionIndex == i ? Colors.green : Colors.grey), onPressed: () => setDialogState(() => correctOptionIndex = i))))))
-        else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: const Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: const Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
-      ])),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), ElevatedButton(onPressed: () async {
-        final updated = card.copyWith(question: qController.text, answer: aController.text, imagePath: imagePath, options: optionControllers.map((c) => c.text).toList(), correctOptionIndex: correctOptionIndex);
-        setState(() { int idx = flashcards.indexWhere((c) => c.id == card.id); flashcards[idx] = updated; });
-        await _saveFlashcards(); Navigator.pop(context);
-      }, child: const Text('حفظ'))]
+        title: const Text('تعديل البطاقة'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (imagePath != null) Image.file(File(imagePath!), height: 80),
+          TextField(controller: qController, decoration: const InputDecoration(labelText: 'السؤال')),
+          if (type == 'text') TextField(controller: aController, decoration: const InputDecoration(labelText: 'الإجابة'))
+          else if (type == 'multipleChoice') Column(children: List.generate(optionControllers.length, (i) => TextField(controller: optionControllers[i], decoration: InputDecoration(labelText: 'خيار ${i + 1}', suffixIcon: IconButton(icon: Icon(Icons.check_circle, color: correctOptionIndex == i ? Colors.green : Colors.grey), onPressed: () => setDialogState(() => correctOptionIndex = i))))))
+          else if (type == 'trueFalse') Column(children: [RadioListTile<int>(title: const Text('صح'), value: 0, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v)), RadioListTile<int>(title: const Text('خطأ'), value: 1, groupValue: correctOptionIndex, onChanged: (v) => setDialogState(() => correctOptionIndex = v))])
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), ElevatedButton(onPressed: () async {
+          final updated = card.copyWith(question: qController.text, answer: aController.text, imagePath: imagePath, options: optionControllers.map((c) => c.text).toList(), correctOptionIndex: correctOptionIndex);
+          setState(() { int idx = flashcards.indexWhere((c) => c.id == card.id); flashcards[idx] = updated; });
+          await _saveFlashcards(); Navigator.pop(context);
+        }, child: const Text('حفظ'))]
     )));
   }
 
@@ -573,28 +573,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     String? cat = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-      title: const Text('اختر التصنيف'), 
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        ListTile(title: const Text('كل التصنيفات المستحقة'), onTap: () => Navigator.pop(context, 'ALL')),
-        ...categoriesWithDueCards.map((c) => ListTile(title: Text(c), onTap: () => Navigator.pop(context, c)))
-      ]))));
+        title: const Text('اختر التصنيف'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(title: const Text('كل التصنيفات المستحقة'), onTap: () => Navigator.pop(context, 'ALL')),
+          ...categoriesWithDueCards.map((c) => ListTile(title: Text(c), onTap: () => Navigator.pop(context, c)))
+        ]))));
 
     if (cat == null) return;
-    
-    var due = (cat == 'ALL') 
-        ? dueCardsOverall 
+
+    var due = (cat == 'ALL')
+        ? dueCardsOverall
         : dueCardsOverall.where((c) => c.category == cat).toList();
 
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ReviewScreen(flashcards: due)));
-    
+
     if (result != null && result is List<Flashcard>) {
-       setState(() {
-         for (var updatedCard in result) {
-           int index = flashcards.indexWhere((c) => c.id == updatedCard.id);
-           if (index != -1) flashcards[index] = updatedCard;
-         }
-       });
-       await _saveFlashcards();
+      setState(() {
+        for (var updatedCard in result) {
+          int index = flashcards.indexWhere((c) => c.id == updatedCard.id);
+          if (index != -1) flashcards[index] = updatedCard;
+        }
+      });
+      await _saveFlashcards();
     }
   }
 
@@ -617,9 +617,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final categories = flashcards.map((c) => c.category).toSet().toList();
     TextEditingController textC = TextEditingController(); String? selected;
     return showDialog<String>(context: context, builder: (context) => StatefulBuilder(builder: (context, setState) => AlertDialog(
-      title: Text(title),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: textC, decoration: const InputDecoration(labelText: 'تصنيف جديد')), Wrap(children: categories.map((c) => ChoiceChip(label: Text(c), selected: selected == c, onSelected: (s) => setState(() => selected = s ? c : null))).toList())],),
-      actions: [ElevatedButton(onPressed: () => Navigator.pop(context, textC.text.isNotEmpty ? textC.text : selected), child: const Text('تأكيد'))]
+        title: Text(title),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: textC, decoration: const InputDecoration(labelText: 'تصنيف جديد')), Wrap(children: categories.map((c) => ChoiceChip(label: Text(c), selected: selected == c, onSelected: (s) => setState(() => selected = s ? c : null))).toList())],),
+        actions: [ElevatedButton(onPressed: () => Navigator.pop(context, textC.text.isNotEmpty ? textC.text : selected), child: const Text('تأكيد'))]
     )));
   }
 
@@ -656,13 +656,13 @@ class _AllFlashcardsScreenState extends State<AllFlashcardsScreen> {
             title: Text(c.question),
             subtitle: Text('إجابة: ${c.answer}\nتصنيف: ${c.category}', style: const TextStyle(fontSize: 12)),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () async { 
-                await widget.onEdit(c); 
-                setState(() { 
-                  _filtered = Hive.box('flashcards').get('cards').map((m) => Flashcard.fromMap(Map<String, dynamic>.from(m))).toList(); if (widget.title != 'كل البطاقات') { String cat = widget.title.replaceFirst('تصنيف: ', ''); _filtered = _filtered.where((fc) => fc.category == cat).toList(); } 
-                }); 
+              IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () async {
+                await widget.onEdit(c);
+                setState(() {
+                  _filtered = Hive.box('flashcards').get('cards').map((m) => Flashcard.fromMap(Map<String, dynamic>.from(m))).toList(); if (widget.title != 'كل البطاقات') { String cat = widget.title.replaceFirst('تصنيف: ', ''); _filtered = _filtered.where((fc) => fc.category == cat).toList(); }
+                });
               }),
-              IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async { 
+              IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () async {
                 await widget.onDelete(c.id); setState(() { _filtered.removeWhere((item) => item.id == c.id); });
               }),
             ]),

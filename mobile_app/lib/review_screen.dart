@@ -25,7 +25,6 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   int? _selectedOptionIndex;
   bool _isExplaining = false;
 
-  // متغيرات لحفظ الترتيب العشوائي للخيارات لكل بطاقة
   late List<String> _shuffledOptions;
   late int _shuffledCorrectIndex;
 
@@ -36,7 +35,7 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
     _sessionCards = List.from(widget.flashcards)..shuffle();
-    _prepareCardOptions(); // تجهيز خيارات أول بطاقة
+    _prepareCardOptions();
 
     _controller = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -48,18 +47,15 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     ));
   }
 
-  // دالة لتجهيز خيارات البطاقة الحالية بشكل عشوائي
   void _prepareCardOptions() {
     final card = _sessionCards[_currentCardIndex];
     if (card.answerType == 'multipleChoice' || card.answerType == 'trueFalse') {
-      // حفظ الإجابة الصحيحة الأصلية
       String correctText = card.options[card.correctOptionIndex ?? 0];
-
-      // خلط الخيارات
       _shuffledOptions = List.from(card.options)..shuffle();
-
-      // إيجاد مكان الإجابة الصحيحة الجديد
       _shuffledCorrectIndex = _shuffledOptions.indexOf(correctText);
+    } else {
+      _shuffledOptions = [];
+      _shuffledCorrectIndex = -1;
     }
   }
 
@@ -85,11 +81,10 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
         _textAnswerController.clear();
         _showTextResult = false;
         _selectedOptionIndex = null;
-        _prepareCardOptions(); // تجهيز خيارات البطاقة التالية
+        _prepareCardOptions();
         _controller.reset();
       });
     } else {
-      // إرجاع القائمة الكاملة المحدثة لضمان حفظ الإحصائيات
       Navigator.pop(context, widget.flashcards);
     }
   }
@@ -260,7 +255,7 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     return Column(
       children: [
         if (isMCQ) ...List.generate(_shuffledOptions.length, (i) => Card(margin: EdgeInsets.only(bottom: 8), child: RadioListTile<int>(title: Text(_shuffledOptions[i]), value: i, groupValue: _selectedOptionIndex, onChanged: (v) => setState(() => _selectedOptionIndex = v))))
-        else Row(children: [Expanded(child: FilledButton.tonal(onPressed: () { _selectedOptionIndex = _shuffledOptions.indexOf('صح'); _submitAnswer(); }, child: Text('صح'))), SizedBox(width: 10), Expanded(child: FilledButton.tonal(onPressed: () { _selectedOptionIndex = _shuffledOptions.indexOf('خطأ'); _submitAnswer(); }, child: Text('خطأ')))]),
+        else Row(children: List.generate(_shuffledOptions.length, (i) => Expanded(child: Padding(padding: EdgeInsets.symmetric(horizontal: 5), child: FilledButton.tonal(onPressed: () { setState(() => _selectedOptionIndex = i); _submitAnswer(); }, child: Text(_shuffledOptions[i])))))),
         if (isMCQ) FilledButton(onPressed: _selectedOptionIndex != null ? _submitAnswer : null, child: Text('تأكيد الإجابة'), style: FilledButton.styleFrom(minimumSize: Size(double.infinity, 50))),
       ],
     );
@@ -300,7 +295,6 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     if (!isActuallyCorrect) rating = 0;
 
     if (rating == 0) {
-      _sessionCards.add(currentCard);
       _updateCardInOriginalList(currentCard, 1, false);
     } else {
       int multiplier = (rating == 1) ? 2 : 4;
@@ -312,6 +306,12 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
 
   void _updateCardInOriginalList(Flashcard card, int interval, bool correct) {
     int idx = widget.flashcards.indexWhere((c) => c.id == card.id);
-    if (idx != -1) widget.flashcards[idx] = card.copyWith(interval: interval, nextReviewDate: DateTime.now().add(Duration(days: interval)), lastReviewCorrect: correct);
+    if (idx != -1) {
+      widget.flashcards[idx] = card.copyWith(
+        interval: interval,
+        nextReviewDate: DateTime.now().add(Duration(days: interval)),
+        lastReviewCorrect: correct,
+      );
+    }
   }
 }
