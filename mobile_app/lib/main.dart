@@ -173,6 +173,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _showAboutApp() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حول التطبيق'),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ذاكرتي الذكية', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              SizedBox(height: 10),
+              Text('كيف يعمل التطبيق:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('يعتمد التطبيق على نظام التكرار المتباعد (Spaced Repetition System) لضمان حفظ المعلومات في الذاكرة طويلة المدى. يتم جدولة مراجعة البطاقات بناءً على مستوى صعوبتها بالنسبة لك.'),
+              SizedBox(height: 10),
+              Text('مميزات التطبيق:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('• إنشاء بطاقات ذكية من النصوص والصور باستخدام الذكاء الاصطناعي.'),
+              Text('• دعم أنواع مختلفة من الأسئلة: نصية، اختيار من متعدد، وصح أو خطأ.'),
+              Text('• ميزة "اشرح لي" لفهم المعلومات بعمق عبر الذكاء الاصطناعي.'),
+              Text('• إحصائيات دقيقة لمتابعة مستوى تقدمك الدراسي.'),
+              Text('• نظام إشعارات ذكي لتذكيرك بمواعيد المراجعة اليومية.'),
+              Text('• إمكانية تصدير واستيراد البطاقات لمشاركتها مع الآخرين.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayCards = flashcards.reversed.take(10).toList();
@@ -189,12 +220,14 @@ class _HomeScreenState extends State<HomeScreen> {
               if (val == 'server') _showServerSettings();
               if (val == 'export') _exportAllCards();
               if (val == 'import') _importFlashcards();
+              if (val == 'about') _showAboutApp();
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'theme', child: Text('المظهر')),
               const PopupMenuItem(value: 'server', child: Text('إعدادات السيرفر')),
               const PopupMenuItem(value: 'export', child: Text('تصدير نسخة احتياطية')),
               const PopupMenuItem(value: 'import', child: Text('استيراد نسخة احتياطية')),
+              const PopupMenuItem(value: 'about', child: Text('حول التطبيق')),
             ],
           ),
         ],
@@ -438,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showCategoriesList() {
     final categories = <String, int>{};
-    for (var card in flashcards) categories.update(card.category, (c) => c + 1, ifAbsent: () => 1);
+    for (var card in flashcards) categories.update(card.category, (count) => count + 1, ifAbsent: () => 1);
     final sorted = categories.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     showModalBottomSheet(
       context: context,
@@ -573,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     String? cat = await showDialog<String>(context: context, builder: (context) => AlertDialog(
-        title: const Text('اختر التصنيف'),
+        title: const Text('اختر التصنيف للاختبار'),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(title: const Text('كل التصنيفات المستحقة'), onTap: () => Navigator.pop(context, 'ALL')),
           ...categoriesWithDueCards.map((c) => ListTile(title: Text(c), onTap: () => Navigator.pop(context, c)))
