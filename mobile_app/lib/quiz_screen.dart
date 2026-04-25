@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class QuizScreen extends StatefulWidget {
-  final List<Map<String, dynamic>> flashcards;
+  final List<Map<String, dynamic>> flashcards;   // قائمة البطاقات (سؤال/إجابة)
 
   QuizScreen({required this.flashcards});
 
@@ -10,27 +10,27 @@ class QuizScreen extends StatefulWidget {
 }
 
 class _QuizScreenState extends State<QuizScreen> {
-  int _currentIndex = 0;
-  bool _showAnswer = false;
-  late List<Map<String, dynamic>> _quizCards;
+  int _currentIndex = 0;   // مؤشر البطاقة الحالية
+  bool _showAnswer = false;   // هل يتم عرض الإجابة أم لا
+  late List<Map<String, dynamic>> _quizCards;   // قائمة البطاقات بعد الترتيب العشوائي
 
   @override
   void initState() {
     super.initState();
-    // Shuffle the cards for the quiz
+    // ترتيب البطاقات بشكل عشوائي عند بدء الاختبار
     _quizCards = List.from(widget.flashcards)..shuffle();
   }
 
-  void _nextCard() {
+  void _nextCard() {   // الانتقال إلى البطاقة التالية
     setState(() {
       if (_currentIndex < _quizCards.length - 1) {
-        _currentIndex++;
-        _showAnswer = false; // Hide answer for the new card
+        _currentIndex++;   // الانتقال للبطاقة التالية
+        _showAnswer = false;   // إخفاء الإجابة للبطاقة الجديدة
       } else {
-        // End of quiz
-        Navigator.pop(context);
+        // نهاية الاختبار
+        Navigator.pop(context);   // إغلاق الشاشة
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('انتهى الاختبار!')),
+          SnackBar(content: Text('انتهى الاختبار!')),   // رسالة انتهاء الاختبار
         );
       }
     });
@@ -38,7 +38,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_quizCards.isEmpty) {
+    if (_quizCards.isEmpty) {   // إذا لم توجد بطاقات
       return Scaffold(
         appBar: AppBar(title: Text('اختبار')),
         body: Center(
@@ -47,11 +47,11 @@ class _QuizScreenState extends State<QuizScreen> {
       );
     }
 
-    final card = _quizCards[_currentIndex];
+    final card = _quizCards[_currentIndex];   // البطاقة الحالية
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('اختبار (${_currentIndex + 1}/${_quizCards.length})'),
+        title: Text('اختبار (${_currentIndex + 1}/${_quizCards.length})'),   // عرض رقم البطاقة الحالية من إجمالي البطاقات
       ),
       body: Center(
         child: Padding(
@@ -59,7 +59,7 @@ class _QuizScreenState extends State<QuizScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Card content
+              // محتوى البطاقة
               Expanded(
                 child: Card(
                   elevation: 8,
@@ -67,7 +67,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(20.0),
                       child: Text(
-                        _showAnswer ? (card['answer'] ?? '') : (card['question'] ?? ''),
+                        _showAnswer ? (card['answer'] ?? '') : (card['question'] ?? ''),   // عرض السؤال أو الإجابة
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
@@ -77,21 +77,21 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
               SizedBox(height: 20),
 
-              // Action buttons
-              if (!_showAnswer)
+              // أزرار التحكم
+              if (!_showAnswer)   // زر إظهار الإجابة
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     minimumSize: Size(double.infinity, 50),
                   ),
                   onPressed: () {
                     setState(() {
-                      _showAnswer = true;
+                      _showAnswer = true;   // إظهار الإجابة
                     });
                   },
                   child: Text('إظهار الإجابة'),
                 ),
-              
-              if (_showAnswer)
+
+              if (_showAnswer)   // زر البطاقة التالية أو إنهاء الاختبار
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,

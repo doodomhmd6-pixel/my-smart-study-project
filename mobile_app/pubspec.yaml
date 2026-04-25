@@ -1,46 +1,45 @@
-name: smart_memory_app
-description: تطبيق ذاكرتي الذكية المحلي
-version: 1.0.0+1
+name: smart_memory_app                # اسم التطبيق
+description: تطبيق ذاكرتي الذكية المحلي   # وصف التطبيق
+version: 1.0.0+1                      # رقم الإصدار
 
 environment:
-  sdk: ">=2.19.0 <3.0.0"
+  sdk: ">=2.19.0 <3.0.0"              # نسخة Dart المطلوبة
 
 dependencies:
   flutter:
-    sdk: flutter
-  hive: ^2.2.3
+    sdk: flutter                      # مكتبة Flutter الأساسية
+  hive: ^2.2.3                        # قاعدة بيانات محلية سريعة وخفيفة
   flutter_localizations:
-    sdk: flutter
-  intl: 0.20.2
-  hive_flutter: ^1.1.0
-  path_provider: ^2.1.5
-  shared_preferences: ^2.5.4
-  http: ^1.2.1
-  http_parser: ^4.0.2
-  image_picker: ^1.1.2
-  file_picker: ^8.3.7
-  fl_chart: ^0.66.0
-  share_plus: ^10.1.0
-  flutter_local_notifications: ^17.2.2 # إضافة مكتبة الإشعارات
-  timezone: ^0.9.4 # لإدارة مواقيت الإشعارات
-
-  cupertino_icons: ^1.0.5
+    sdk: flutter                      # دعم تعدد اللغات (مثل العربية)
+  intl: 0.20.2                        # مكتبة التعامل مع التواريخ والأرقام
+  hive_flutter: ^1.1.0                # تكامل Hive مع Flutter
+  path_provider: ^2.1.5               # الوصول لمسارات التخزين بالجهاز
+  shared_preferences: ^2.5.4          # تخزين الإعدادات البسيطة (مثل الثيم)
+  http: ^1.2.1                        # إرسال واستقبال طلبات HTTP
+  http_parser: ^4.0.2                 # تحليل بيانات HTTP
+  image_picker: ^1.1.2                # اختيار الصور من الكاميرا أو المعرض
+  file_picker: ^8.3.7                 # اختيار الملفات من الجهاز
+  fl_chart: ^0.66.0                   # مكتبة الرسوم البيانية (Pie/Bar)
+  share_plus: ^10.1.0                 # مشاركة البيانات عبر التطبيقات الأخرى
+  flutter_local_notifications: ^17.2.2 # مكتبة الإشعارات المحلية
+  timezone: ^0.9.4                    # إدارة المناطق الزمنية للإشعارات
+  cupertino_icons: ^1.0.5             # أيقونات iOS الافتراضية
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter
-  flutter_launcher_icons: ^0.14.4
-  hive_generator: ^2.0.1
-  build_runner: ^2.4.13
+    sdk: flutter                      # مكتبة الاختبارات
+  flutter_launcher_icons: ^0.14.4     # توليد أيقونات التطبيق
+  hive_generator: ^2.0.1              # توليد Adapters لـ Hive
+  build_runner: ^2.4.13               # تشغيل مولدات الكود (مثل Hive)
 
 flutter_launcher_icons:
-  android: "ic_launcher"
-  ios: true
-  image_path: "assets/images/IconMain.png"
-  min_sdk_android: 21
+  android: "ic_launcher"              # اسم أيقونة Android
+  ios: true                           # دعم أيقونة iOS
+  image_path: "assets/images/IconMain.png" # مسار صورة الأيقونة
+  min_sdk_android: 21                 # أقل إصدار Android مدعوم
 
 flutter:
-  uses-material-design: true
+  uses-material-design: true          # استخدام تصميم Material
   assets:
-    - assets/
-    - assets/images/
+    - assets/                         # مجلد الموارد
+    - assets/images/                  # مجلد الصور

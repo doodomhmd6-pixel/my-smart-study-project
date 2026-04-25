@@ -1,21 +1,18 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+// استيراد مكتبة واجهات Flutter
 import 'package:flutter/material.dart';
+// استيراد مكتبة الاختبارات الخاصة بـ Flutter
 import 'package:flutter_test/flutter_test.dart';
 
+// استيراد التطبيق الرئيسي من مشروعك
 import 'package:smart_memory_app/main.dart';
 
 void main() {
+  // تعريف اختبار واجهة جديد
   testWidgets('App bar title test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+    // بناء التطبيق وضخ إطار جديد (render)
     await tester.pumpWidget(MyApp());
 
-    // Verify that the app bar title is correct.
+    // التحقق أن عنوان الـ AppBar يحتوي على النص "ذاكرتي الذكية"
     expect(find.text('ذاكرتي الذكية'), findsOneWidget);
   });
 }
