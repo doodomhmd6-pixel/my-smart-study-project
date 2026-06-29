@@ -95,10 +95,12 @@ def generate_flashcards_with_gemini(input_data, is_image=False, card_type='text'
     if not GEMINI_API_KEY:
         return jsonify({'error': 'API Key not configured on server'}), 500
     
-    model_names = ['gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest']
+    # ⬇️ استبدل السطر القديم بهذا السطر المحدث هنا ⬇️
+    model_names = ['gemini-2.5-flash', 'gemini-2.0-flash-lite']
     last_error = ""
     
     for m_name in model_names:
+        # باقي الكود كما هو...
         try:
             model = genai.GenerativeModel(m_name)
             
